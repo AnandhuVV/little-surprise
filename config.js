@@ -10,6 +10,11 @@ export const CONFIG = {
   envelopeTitle: "you've got mail 💌",
   envelopeCard: "today is all about you ✨",
 
+  darkHint: "hmm… it's a little dark in here 🙈",
+  popPrompt: "pop the balloons to turn on the lights 🎈",
+  popMore2: "ooh ✨ two more…",
+  popMore1: "one more… 🎈",
+
   cakeTitle: "Happy Birthday, {name}!",
   wishPrompt: "close your eyes, make a wish… then tap the cake to blow out the candles ✨",
   afterWish: "I hope every single wish comes true 💖",

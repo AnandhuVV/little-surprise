@@ -126,7 +126,7 @@ const CHORDS = [[1, C], [4, G], [7, G], [10, C], [13, C], [17, F], [20, C], [23,
 const LOOP_BEATS = 30, BEAT = 0.5, VOLUME = 0.55;
 
 class MusicBox {
-  constructor() { this.ctx = null; this.on = true; }
+  constructor() { this.ctx = null; this.on = true; this.level = VOLUME; }
 
   start() {
     if (this.ctx) { this.ctx.resume(); return; }
@@ -145,7 +145,7 @@ class MusicBox {
     this.bus.connect(delay);
     delay.connect(feedback).connect(delay);
     delay.connect(wet).connect(this.master);
-    this.master.gain.linearRampToValueAtTime(VOLUME, c.currentTime + 2.5);
+    this.master.gain.linearRampToValueAtTime(this.level, c.currentTime + 2.5);
     this.next = c.currentTime + 0.5;
     this.schedule();
     document.addEventListener('visibilitychange', () => (document.hidden ? c.suspend() : c.resume()));
@@ -189,14 +189,20 @@ class MusicBox {
     this.tone(rand(86, 93) | 0, this.ctx.currentTime + 0.01, 0.5, 0.8);
   }
 
+  noise(seconds) {
+    const c = this.ctx;
+    const buf = c.createBuffer(1, c.sampleRate * seconds, c.sampleRate);
+    const data = buf.getChannelData(0);
+    for (let i = 0; i < data.length; i++) data[i] = Math.random() * 2 - 1;
+    const src = c.createBufferSource();
+    src.buffer = buf;
+    return src;
+  }
+
   whoosh() {
     if (!this.ctx) return;
     const c = this.ctx, t = c.currentTime;
-    const buf = c.createBuffer(1, c.sampleRate * 0.8, c.sampleRate);
-    const data = buf.getChannelData(0);
-    for (let i = 0; i < data.length; i++) data[i] = Math.random() * 2 - 1;
-    const src = c.createBufferSource(), bp = c.createBiquadFilter(), g = c.createGain();
-    src.buffer = buf;
+    const src = this.noise(0.8), bp = c.createBiquadFilter(), g = c.createGain();
     bp.type = 'bandpass';
     bp.Q.value = 0.8;
     bp.frequency.setValueAtTime(1400, t);
@@ -208,16 +214,41 @@ class MusicBox {
     src.start(t);
   }
 
+  pop() {   // a sharp latex snap plus a soft low thump; skips the ducked music level
+    if (!this.ctx) return;
+    const c = this.ctx, t = c.currentTime;
+    const src = this.noise(0.15), hp = c.createBiquadFilter(), g = c.createGain();
+    hp.type = 'highpass';
+    hp.frequency.value = 900;
+    g.gain.setValueAtTime(0.9, t);
+    g.gain.exponentialRampToValueAtTime(0.001, t + 0.12);
+    src.connect(hp).connect(g).connect(c.destination);
+    src.start(t);
+    const o = c.createOscillator(), og = c.createGain();
+    o.frequency.setValueAtTime(160, t);
+    o.frequency.exponentialRampToValueAtTime(55, t + 0.1);
+    og.gain.setValueAtTime(0.5, t);
+    og.gain.exponentialRampToValueAtTime(0.001, t + 0.12);
+    o.connect(og).connect(c.destination);
+    o.start(t);
+    o.stop(t + 0.15);
+  }
+
+  duck(level) {   // quiet in the dark, back to full when the lights come on
+    this.level = level;
+    if (this.ctx && this.on) this.master.gain.setTargetAtTime(level, this.ctx.currentTime, 0.5);
+  }
+
   toggle() {
     this.on = !this.on;
-    if (this.ctx) this.master.gain.setTargetAtTime(this.on ? VOLUME : 0, this.ctx.currentTime, 0.15);
+    if (this.ctx) this.master.gain.setTargetAtTime(this.on ? this.level : 0, this.ctx.currentTime, 0.15);
     return this.on;
   }
 }
 const music = new MusicBox();
 $('#mute').addEventListener('click', () => { $('#mute').textContent = music.toggle() ? '🔊' : '🔈'; });
 
-// ------------------------------------------------------------------ three.js stage
+// ------------------------------------------------------------------ three.js stage (a dark room lit by candles and fairy lights)
 const canvas = $('#stage');
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
 renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
@@ -229,24 +260,64 @@ renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 const world = new THREE.Scene();
 const pmrem = new THREE.PMREMGenerator(renderer);
 world.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
-world.environmentIntensity = 0.75;
+world.environmentIntensity = 0;
+world.fog = new THREE.Fog(0x22122a, 7.5, 15);
 
 const camera = new THREE.PerspectiveCamera(30, 1, 0.05, 40);
-const sun = new THREE.DirectionalLight(0xfff4ec, 2.0);
-sun.position.set(1.4, 3.2, 2.2);
-sun.castShadow = true;
-sun.shadow.mapSize.set(2048, 2048);
-Object.assign(sun.shadow.camera, { left: -2.4, right: 2.4, top: 2.4, bottom: -2.4, near: 0.5, far: 9 });
-sun.shadow.bias = -0.0004;
-sun.shadow.normalBias = 0.015;
-const rim = new THREE.DirectionalLight(0xffd0e6, 0.9);   // soft pink back light so balloons and icing get a glowing edge
-rim.position.set(-1.5, 2.5, -3);
-world.add(sun, rim, new THREE.HemisphereLight(0xfff2f6, 0xffc9dc, 0.7));
 
-const ground = new THREE.Mesh(new THREE.CircleGeometry(3.5, 64), new THREE.ShadowMaterial({ color: 0xa8436f, opacity: 0.16 }));
-ground.rotation.x = -Math.PI / 2;
-ground.receiveShadow = true;
-world.add(ground);
+// Every light is a "lamp" with a level (0..1) that the balloon pops switch on; max is its full brightness.
+const lamps = {};
+function lamp(name, light, max, flicker = 0) {
+  light.intensity = 0;
+  world.add(light);
+  lamps[name] = { light, max, level: 0, flicker, seed: rand(0, 50) };
+  return light;
+}
+const room = { env: 0, envMax: 0.22 };
+lamp('moon', new THREE.HemisphereLight(0xa58bd6, 0x2b1730), 0.55);
+const spot = lamp('spot', new THREE.SpotLight(0xffe0bf, 0, 0, 0.36, 0.75, 2), 30);
+spot.position.set(0.7, 3.4, 2.0);
+spot.target.position.set(0, 0.6, 0);
+spot.castShadow = true;
+spot.shadow.mapSize.set(1024, 1024);
+Object.assign(spot.shadow.camera, { near: 1, far: 8 });
+spot.shadow.bias = -0.0004;
+spot.shadow.normalBias = 0.02;
+world.add(spot.target);
+lamp('fairy', new THREE.PointLight(0xffc27a, 0, 0, 2), 0.45, 0.08).position.set(0, 1.5, -0.9);
+lamp('left', new THREE.PointLight(0xffa457, 0, 0, 2), 0.32, 0.18).position.set(-0.55, 0.32, 0.72);
+lamp('right', new THREE.PointLight(0xffa457, 0, 0, 2), 0.32, 0.18).position.set(0.58, 0.32, 0.72);
+lamp('back', new THREE.PointLight(0xffa457, 0, 0, 2), 0.3, 0.18).position.set(0, 0.32, -0.95);
+
+function updateLamps(t) {
+  for (const L of Object.values(lamps)) {
+    const f = L.flicker ? 1 - L.flicker * (0.5 + 0.5 * Math.sin(t * 9.3 + L.seed) * Math.sin(t * 5.7 + L.seed * 2)) : 1;
+    L.light.intensity = L.max * L.level * f;
+  }
+  world.environmentIntensity = room.env;
+}
+
+// switching on: a few stuttering flickers, then a smooth rise
+function switchOn(target, { delay = 0, ms = 800, key = 'level', to = 1 } = {}) {
+  return tween(ms, (e) => {
+    target[key] = (e < 0.55 && Math.random() > 0.3 + e ? e * 0.15 : e) * to;
+  }, { delay, easing: ease.inOutSine });
+}
+
+function radialTexture(inner = 0, outer = 1, size = 128) {
+  const c = document.createElement('canvas');
+  c.width = c.height = size;
+  const g = c.getContext('2d');
+  const h = size / 2;
+  const grd = g.createRadialGradient(h, h, 0, h, h, h);
+  grd.addColorStop(inner, 'rgba(255,255,255,1)');
+  grd.addColorStop(outer, 'rgba(255,255,255,0)');
+  g.fillStyle = grd;
+  g.fillRect(0, 0, size, size);
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace;
+  return t;
+}
 
 function softTexture() {
   const c = document.createElement('canvas');
@@ -264,6 +335,15 @@ function softTexture() {
 }
 const softTex = softTexture();
 
+// a floor that catches the pools of candlelight and fades into the dark at its edges
+const floor = new THREE.Mesh(new THREE.CircleGeometry(4, 72), new THREE.MeshStandardMaterial({
+  color: 0x6a3d5f, roughness: 0.9, transparent: true, depthWrite: false, alphaMap: radialTexture(0.35, 1, 256),
+}));
+floor.rotation.x = -Math.PI / 2;
+floor.receiveShadow = true;
+floor.renderOrder = -1;
+world.add(floor);
+
 function emojiTexture(emoji) {
   const c = document.createElement('canvas');
   c.width = c.height = 128;
@@ -279,9 +359,9 @@ function emojiTexture(emoji) {
 
 function blob(size) {   // soft contact shadow
   const m = new THREE.Mesh(new THREE.PlaneGeometry(size, size),
-    new THREE.MeshBasicMaterial({ map: softTex, color: 0x9b3d66, transparent: true, opacity: 0.22, depthWrite: false }));
+    new THREE.MeshBasicMaterial({ map: softTex, color: 0x12060f, transparent: true, opacity: 0.4, depthWrite: false }));
   m.rotation.x = -Math.PI / 2;
-  m.position.y = 0.002;
+  m.position.y = 0.003;
   return m;
 }
 
@@ -378,14 +458,18 @@ function resize() {
 addEventListener('resize', resize);
 resize();
 
+const raycaster = new THREE.Raycaster();
+const ndc = (x, y) => new THREE.Vector2((x / innerWidth) * 2 - 1, -(y / innerHeight) * 2 + 1);
+const toScreen = (v) => { const p = v.clone().project(camera); return { x: (p.x + 1) / 2, y: (1 - p.y) / 2 }; };
+
 // ------------------------------------------------------------------ loading
 const draco = new DRACOLoader().setDecoderPath('https://cdn.jsdelivr.net/npm/three@0.165.0/examples/jsm/libs/draco/gltf/');
 const loader = new GLTFLoader().setDRACOLoader(draco);
-const progress = { cake: 0, decor: 0, gift: 0 };
+const progress = { cake: 0, decor: 0 };
 function load(url, key) {
   return new Promise((resolve, reject) => loader.load(url, resolve, (e) => {
     if (e.total) progress[key] = e.loaded / e.total;
-    $('#progress').style.width = `${(progress.cake * 0.78 + progress.decor * 0.19 + progress.gift * 0.03) * 92}%`;
+    $('#progress').style.width = `${(progress.cake * 0.62 + progress.decor * 0.38) * 92}%`;
   }, reject));
 }
 
@@ -395,6 +479,7 @@ const flames = [];
 let wished = false, cakeReadyAt = Infinity;
 const turntable = new THREE.Group();   // stand + cake, slowly turning
 const STAND_H = 0.3;
+const CANDLE_MAX = 0.16;
 const CANDY = { roughness: 0.14, clearcoat: 1, clearcoatRoughness: 0.05 };
 const CAKE_LOOK = {
   Icing_Glossy_White: { roughness: 0.3, clearcoat: 0.6, clearcoatRoughness: 0.2, sheen: 0.3, sheenColor: 0xffffff },
@@ -425,7 +510,7 @@ function setupCake(gltf) {
     f.traverse((o) => {
       if (!o.isMesh) return;
       o.castShadow = false;
-      o.material.emissiveIntensity = 1.5;   // keeps the flame golden instead of tone-mapping to white
+      o.material.emissiveIntensity = 1.6;   // keeps the flame golden instead of tone-mapping to white
     });
     const glow = new THREE.Sprite(new THREE.SpriteMaterial({
       map: softTex, color: 0xffa04a, blending: THREE.AdditiveBlending, transparent: true, depthWrite: false, toneMapped: false,
@@ -433,10 +518,10 @@ function setupCake(gltf) {
     glow.position.copy(f.position).add(new THREE.Vector3(0, 0.024, 0));
     glow.scale.setScalar(0.2);
     cake.add(glow);
-    f.userData = { base: f.scale.clone(), life: 1, glow, seed: rand(0, 100) };
+    f.userData = { base: f.scale.clone(), life: 0, glow, seed: rand(0, 100) };   // unlit until the last balloon pops
     flames.push(f);
   }
-  candleLight = new THREE.PointLight(0xffa860, 0.07, 0, 2);
+  candleLight = new THREE.PointLight(0xffa860, 0, 0, 2);
   candleLight.position.set(0, 1.13, 0);
   cake.add(candleLight);
   turntable.add(blob(1.2));
@@ -451,17 +536,18 @@ function animateFlames(t) {
     const k = 1 + 0.08 * Math.sin(t * 13 + seed) + 0.05 * Math.sin(t * 27.3 + seed * 2);
     f.scale.set(base.x * life * (1.04 - 0.04 * k), base.y * life * k, base.z * life * (1.04 - 0.04 * k));
     f.visible = life > 0.01;
+    glow.visible = f.visible;
     glow.material.opacity = life * (0.8 + 0.2 * Math.sin(t * 17 + seed));
     total += life * k;
   }
-  if (candleLight) candleLight.intensity = 0.07 * (total / Math.max(flames.length, 1));
+  if (candleLight) candleLight.intensity = CANDLE_MAX * (total / Math.max(flames.length, 1));
 }
 
 const puffs = [];
 function puff(f) {
   const p = f.getWorldPosition(new THREE.Vector3()).add(new THREE.Vector3(0, 0.015, 0));
   for (let i = 0; i < 7; i++) {
-    const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: softTex, color: 0xd9cbd0, transparent: true, opacity: 0, depthWrite: false }));
+    const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: softTex, color: 0xb9a6b0, transparent: true, opacity: 0, depthWrite: false }));
     s.position.copy(p);
     world.add(s);
     puffs.push({ s, t: -i * 0.11, life: 2.2, vx: rand(-0.025, 0.025), vz: rand(-0.025, 0.025) });
@@ -487,16 +573,6 @@ function stepPuffs(dt) {
   }
 }
 
-function startCake() {
-  go('cake');
-  turntable.visible = true;
-  frame(cakeBox, 14, 1.3);
-  controls.enabled = true;
-  turntable.scale.setScalar(0.001);
-  tween(1000, (e) => turntable.scale.setScalar(Math.max(e, 0.001)), { easing: ease.outBack, delay: 300 });
-  cakeReadyAt = performance.now() + 1400;
-}
-
 async function blowOut() {
   if (wished) return;
   wished = true;
@@ -518,14 +594,49 @@ async function blowOut() {
 
 // ------------------------------------------------------------------ party decorations (modelled in Blender, decor.glb)
 const decor = new THREE.Group();
-const balloons = [], floaters = [], pennants = [];
-let decorGltf, falling, sparkles, fairy;
+const balloons = [], floaters = [], pennants = [], roomCandles = [];
+const votiveGlass = new Set();
+let decorGltf, falling, sparkles, fairy, rice;
 const UP = new THREE.Vector3(0, 1, 0);
+const WARM = new THREE.Color(1, 0.8, 0.5), BULB_OFF = new THREE.Color(0.012, 0.009, 0.009);
 const CONFETTI = ['#ff8fb8', '#ffc2d8', '#c9b3ff', '#f6cf6e', '#9fe3c9', '#8fd0ff', '#ffffff'];
 const latex = (color) => ({ Balloon_Latex: { color, roughness: 0.3, clearcoat: 1, clearcoatRoughness: 0.1, sheen: 0.5, sheenColor: 0xffffff } });
 const foil = (color) => ({ Heart_Foil: { color, metalness: 0.65, roughness: 0.2, clearcoat: 1, clearcoatRoughness: 0.1 } });
-const candy = (color) => ({ Heart_Foil: { color, metalness: 0, ...CANDY } });
-const wrapping = (p, r) => ({ Gift_Paper: { color: p, roughness: 0.45, clearcoat: 0.35 }, Gift_Ribbon: { color: r, roughness: 0.3, clearcoat: 0.6 } });
+const jelly = (color) => ({ Jelly: { color, roughness: 0.08, clearcoat: 1, clearcoatRoughness: 0.04, sheen: 0.3, sheenColor: 0xffd6e6 } });
+
+// dreamy gift boxes: a soft vertical gradient painted per box (bottom, middle, top), satin ribbon, glowing sparkle stars
+const DREAMS = [
+  { stops: ['#e9b3f2', '#b3a4ff', '#a9cfff'], ribbon: '#e6b8ff' },
+  { stops: ['#ff9ec4', '#ffbdd6', '#ffe1ee'], ribbon: '#ffffff' },
+  { stops: ['#a9d8ff', '#b9eedc', '#e6fff3'], ribbon: '#ffb3d6' },
+  { stops: ['#ffc39a', '#ffd9b8', '#fff0de'], ribbon: '#ff9ec4' },
+  { stops: ['#c3aaff', '#d8c8ff', '#f1e9ff'], ribbon: '#f6cf6e' },
+];
+function dreamGift({ stops, ribbon }) {
+  const g = make('DreamGift');
+  g.updateMatrixWorld(true);
+  const cs = stops.map((h) => new THREE.Color(h)), v = new THREE.Vector3(), c = new THREE.Color();
+  g.traverse((o) => {
+    if (!o.isMesh) return;
+    const name = o.material.name;
+    if (name === 'Dream_Paper') {
+      o.geometry = o.geometry.clone();
+      const pos = o.geometry.attributes.position, col = new Float32Array(pos.count * 3);
+      for (let i = 0; i < pos.count; i++) {
+        const t = THREE.MathUtils.clamp(v.fromBufferAttribute(pos, i).applyMatrix4(o.matrixWorld).y / 1.06, 0, 1);
+        if (t < 0.5) c.lerpColors(cs[0], cs[1], t * 2); else c.lerpColors(cs[1], cs[2], t * 2 - 1);
+        c.toArray(col, i * 3);
+      }
+      o.geometry.setAttribute('color', new THREE.BufferAttribute(col, 3));
+      o.material = new THREE.MeshPhysicalMaterial({ name, vertexColors: true, roughness: 0.32, clearcoat: 0.8, clearcoatRoughness: 0.15, sheen: 0.4, sheenColor: 0xffffff });
+    } else if (name === 'Dream_Ribbon') {
+      o.material = new THREE.MeshPhysicalMaterial({ name, color: ribbon, roughness: 0.22, clearcoat: 1, clearcoatRoughness: 0.1, sheen: 0.6, sheenColor: 0xffffff });
+    } else if (name === 'Dream_Stars') {
+      o.material = new THREE.MeshStandardMaterial({ name, color: 0xffffff, emissive: 0xfff0fa, emissiveIntensity: 0.8, roughness: 0.4 });
+    }
+  });
+  return g;
+}
 
 function make(name, tints = {}, shadow = true) {
   const obj = decorGltf.scene.getObjectByName(name).clone(true);
@@ -544,6 +655,51 @@ function place(obj, [x, y, z], rotY = 0, scale = 1) {
   obj.scale.setScalar(scale);
   decor.add(obj);
   return obj;
+}
+
+// glowing points that share one material per look; colours are updated every frame for twinkling
+function glowPoints(positions, size, map = softTex) {
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(positions), 3));
+  geo.setAttribute('color', new THREE.BufferAttribute(new Float32Array(positions.length), 3));
+  const pts = new THREE.Points(geo, new THREE.PointsMaterial({
+    map, size, vertexColors: true, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false,
+  }));
+  pts.frustumCulled = false;
+  return pts;
+}
+
+// ---- candle flames (three.js teardrops with a hot core and a soft additive glow)
+const flameGeo = new THREE.LatheGeometry(
+  [[0, 0], [0.0055, 0.004], [0.0085, 0.012], [0.0075, 0.022], [0.004, 0.031], [0, 0.04]].map(([x, y]) => new THREE.Vector2(x, y)), 12);
+const flameMat = new THREE.MeshBasicMaterial({ color: new THREE.Color(1, 0.55, 0.18), toneMapped: false, transparent: true, opacity: 0.9, depthWrite: false });
+const coreMat = new THREE.MeshBasicMaterial({ color: new THREE.Color(1, 0.93, 0.7), toneMapped: false });
+function makeFlame(glowSize = 0.17) {
+  const g = new THREE.Group();
+  const core = new THREE.Mesh(flameGeo, coreMat);
+  core.scale.set(0.5, 0.55, 0.5);
+  core.position.y = 0.002;
+  const glow = new THREE.Sprite(new THREE.SpriteMaterial({
+    map: softTex, color: 0xff9640, blending: THREE.AdditiveBlending, transparent: true, depthWrite: false, toneMapped: false, opacity: 0,
+  }));
+  glow.position.y = 0.018;
+  glow.scale.setScalar(glowSize);
+  g.add(new THREE.Mesh(flameGeo, flameMat), core, glow);
+  g.visible = false;
+  return { g, glow, life: 0, seed: rand(0, 100) };
+}
+
+const FLAME_Y = { Candle_S: 0.098, Candle_M: 0.158, Candle_L: 0.238, Candle_Puddle: 0.058, Votive: 0.036 };
+function roomCandle(kind, [x, z], color, cluster) {
+  const tints = kind === 'Votive'
+    ? { Votive_Glass: { color, transparent: true, opacity: 0.6, roughness: 0.05, clearcoat: 1, emissive: color, emissiveIntensity: 0 } }
+    : { Candle_Wax: { color, roughness: 0.55, sheen: 0.6, sheenColor: 0xffffff } };
+  const obj = place(make(kind, tints), [x, 0, z], rand(0, 6));
+  obj.traverse((o) => { if (o.isMesh && o.material.name === 'Votive_Glass') votiveGlass.add(o.material); });
+  const fl = makeFlame(kind === 'Votive' ? 0.24 : 0.17);
+  fl.g.position.y = FLAME_Y[kind];
+  obj.add(fl.g);
+  roomCandles.push({ ...fl, cluster });
 }
 
 const stringMat = new THREE.MeshStandardMaterial({ color: 0xfff3f7, roughness: 0.5 });
@@ -589,27 +745,48 @@ function bunting() {
     decor.add(holder);
     pennants.push({ m, seed: i * 0.9 });
   }
-  // fairy lights between the flags: tiny bulbs plus additive glow points, twinkling
+  // festoon bulbs (Blender model) hanging between the flags
   const M = N + 1;
-  const bulbs = new THREE.InstancedMesh(new THREE.SphereGeometry(0.012, 10, 8), new THREE.MeshBasicMaterial({ toneMapped: false }), M);
-  const glowPos = new Float32Array(M * 3);
-  const d = new THREE.Object3D();
+  const glass = new THREE.InstancedMesh(decorGltf.scene.getObjectByName('Bulb_Glass').geometry, new THREE.MeshBasicMaterial({ toneMapped: false }), M);
+  const sockets = new THREE.InstancedMesh(decorGltf.scene.getObjectByName('Bulb_Socket').geometry,
+    new THREE.MeshStandardMaterial({ color: 0xcc9a5a, metalness: 1, roughness: 0.35 }), M);
+  const d = new THREE.Object3D(), glowAt = [];
   for (let i = 0; i < M; i++) {
-    d.position.copy(curve.getPointAt(i / N)).add(new THREE.Vector3(0, -0.018, 0.004));
+    d.position.copy(curve.getPointAt(i / N)).add(new THREE.Vector3(0, -0.004, 0.006));
+    d.scale.setScalar(1.3);
+    d.updateMatrix();
+    glass.setMatrixAt(i, d.matrix);
+    sockets.setMatrixAt(i, d.matrix);
+    glass.setColorAt(i, BULB_OFF);
+    glowAt.push(d.position.x, d.position.y - 0.048, d.position.z);
+  }
+  const glow = glowPoints(glowAt, 0.22);
+  glass.frustumCulled = sockets.frustumCulled = false;
+  decor.add(glass, sockets, glow);
+  fairy = { glass, glow, n: M, level: 0, seeds: Array.from({ length: M }, () => rand(0, 6)), c: new THREE.Color() };
+}
+
+// tiny "rice" fairy lights on a copper wire, winding across the floor in front of the cake
+function floorLights() {
+  const curve = new THREE.CatmullRomCurve3([
+    [-1.8, 0.75], [-1.15, 1.18], [-0.6, 1.36], [-0.05, 1.28], [0.5, 1.4], [1.0, 1.22], [1.4, 0.9], [1.9, 0.95],
+  ].map(([x, z]) => new THREE.Vector3(x, 0.006, z)));
+  decor.add(new THREE.Mesh(new THREE.TubeGeometry(curve, 200, 0.0018, 4),
+    new THREE.MeshStandardMaterial({ color: 0xb87333, metalness: 1, roughness: 0.4 })));
+  const n = 64;
+  const bulbs = new THREE.InstancedMesh(new THREE.SphereGeometry(0.0075, 8, 6), new THREE.MeshBasicMaterial({ toneMapped: false }), n);
+  const d = new THREE.Object3D(), glowAt = [];
+  for (let i = 0; i < n; i++) {
+    d.position.copy(curve.getPointAt(i / (n - 1))).add(new THREE.Vector3(0, 0.004, 0));
     d.updateMatrix();
     bulbs.setMatrixAt(i, d.matrix);
-    bulbs.setColorAt(i, new THREE.Color(1, 0.85, 0.55));
-    d.position.toArray(glowPos, i * 3);
+    bulbs.setColorAt(i, BULB_OFF);
+    glowAt.push(d.position.x, d.position.y, d.position.z);
   }
-  const glowGeo = new THREE.BufferGeometry();
-  glowGeo.setAttribute('position', new THREE.BufferAttribute(glowPos, 3));
-  glowGeo.setAttribute('color', new THREE.BufferAttribute(new Float32Array(M * 3), 3));
-  const glow = new THREE.Points(glowGeo, new THREE.PointsMaterial({
-    map: softTex, size: 0.16, vertexColors: true, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false,
-  }));
-  bulbs.frustumCulled = glow.frustumCulled = false;
+  const glow = glowPoints(glowAt, 0.085);
+  bulbs.frustumCulled = false;
   decor.add(bulbs, glow);
-  fairy = { bulbs, glow, n: M, seeds: Array.from({ length: M }, () => rand(0, 6)), c: new THREE.Color() };
+  rice = { bulbs, glow, n, level: 0, c: new THREE.Color() };
 }
 
 function floorConfetti() {
@@ -619,7 +796,7 @@ function floorConfetti() {
   const d = new THREE.Object3D(), c = new THREE.Color();
   for (let i = 0; i < n; i++) {
     const r = 0.78 + Math.random() ** 0.8 * 2.2, a = rand(0, Math.PI * 2);
-    d.position.set(Math.cos(a) * r, 0.002, Math.sin(a) * r * 0.85);
+    d.position.set(Math.cos(a) * r, 0.004, Math.sin(a) * r * 0.85);
     d.rotation.set(rand(-0.12, 0.12), rand(0, Math.PI * 2), rand(-0.12, 0.12));
     d.scale.setScalar(rand(0.7, 1.25));
     d.updateMatrix();
@@ -648,19 +825,18 @@ function setupFalling() {
   falling = { mesh, pieces: Array.from({ length: n }, () => respawnPiece({}, true)), d: new THREE.Object3D() };
 }
 
+const FLOAT_TOP = 2.15;   // fade out before drifting up behind the title
 function resetFloater(f, anywhere) {
   do { f.x = rand(-2.3, 2.3); f.z = rand(-1.7, -0.45); } while (Math.abs(f.x) < 0.55 && f.z > -1.05);
   f.y = anywhere ? rand(0.2, FLOAT_TOP) : 0.05;
 }
-const FLOAT_TOP = 2.15;   // fade out before drifting up behind the title
 
 function setupFloaters() {
   const hearts = ['#ff8fb8', '#ffb3cf', '#d9b8ff', '#ff6f9f'];
   for (let i = 0; i < 12; i++) {
     const star = i % 3 === 2;
-    const obj = star ? make('Star', {}, false) : make('Heart', candy(hearts[i % hearts.length]), false);
-    if (!star) obj.getObjectByName('Heart_Valve').visible = false;
-    const f = { obj, base: star ? rand(0.6, 0.85) : rand(0.2, 0.32), v: rand(0.05, 0.1), seed: rand(0, 6) };
+    const obj = star ? make('Star', {}, false) : make('JellyHeart', jelly(hearts[i % hearts.length]), false);
+    const f = { obj, base: star ? rand(0.6, 0.85) : rand(0.22, 0.34), v: rand(0.05, 0.1), seed: rand(0, 6) };
     resetFloater(f, true);
     decor.add(obj);
     floaters.push(f);
@@ -669,15 +845,9 @@ function setupFloaters() {
 
 function setupSparkles() {
   const n = 36;
-  const geo = new THREE.BufferGeometry();
-  geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(n * 3), 3));
-  geo.setAttribute('color', new THREE.BufferAttribute(new Float32Array(n * 3), 3));
-  const pts = new THREE.Points(geo, new THREE.PointsMaterial({
-    map: sparkleTexture(), size: 0.11, vertexColors: true, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false,
-  }));
-  pts.frustumCulled = false;
+  const pts = glowPoints(new Array(n * 3).fill(0), 0.11, sparkleTexture());
   decor.add(pts);
-  sparkles = { pts, n, st: Array.from({ length: n }, () => ({ speed: rand(0.7, 1.6), seed: rand(0, 6), prev: 0 })) };
+  sparkles = { pts, n, level: 0, st: Array.from({ length: n }, () => ({ speed: rand(0.7, 1.6), seed: rand(0, 6), prev: 0 })) };
   for (let i = 0; i < n; i++) moveSparkle(i);
 }
 function moveSparkle(i) {
@@ -685,49 +855,72 @@ function moveSparkle(i) {
   sparkles.pts.geometry.attributes.position.needsUpdate = true;
 }
 
-function setupDecor(giftGltf) {
-  // little gifts on the floor hold the balloon strings
-  const giftAt = (pos, rot, s, look) => {
-    const g = giftGltf.scene.clone(true);
-    g.traverse((o) => {
-      if (!o.isMesh) return;
-      o.castShadow = o.receiveShadow = true;
-      o.material = tinted(o.material, look[o.material.name]);
-    });
-    return place(g, pos, rot, s);
-  };
-  giftAt([-0.8, 0, -0.52], 0.5, 0.3, wrapping('#ffd1a6', '#ffffff'));
-  giftAt([0.84, 0, -0.46], -0.4, 0.27, wrapping('#b5dcff', '#ff9ec4'));
-  giftAt([1.75, 0, -0.35], 0.2, 0.34, wrapping('#ffb3cf', '#f6cf6e'));
-  giftAt([1.98, 0, 0.05], -0.6, 0.22, wrapping('#c7b2ff', '#ffffff'));
+function setupDecor() {
+  // little dreamy gifts on the floor hold the balloon strings
+  place(dreamGift(DREAMS[3]), [-0.8, 0, -0.52], 0.5, 0.3);
+  place(dreamGift(DREAMS[4]), [0.84, 0, -0.46], -0.4, 0.27);
+  place(dreamGift(DREAMS[1]), [1.75, 0, -0.35], 0.2, 0.34);
+  place(dreamGift(DREAMS[0]), [1.98, 0, 0.05], -0.6, 0.22);
 
-  balloon('Balloon', latex('#ffadc9'), [-0.8, 0.3, -0.52], [-0.9, 1.22, -0.64], 0.85);
-  balloon('Balloon', latex('#cdb4ff'), [-0.8, 0.3, -0.52], [-0.6, 1.08, -0.78], 0.75);
-  balloon('Heart', foil('#f2c46d'), [-0.8, 0.3, -0.52], [-1.0, 0.95, -0.42], 0.8);
-  balloon('Balloon', latex('#a8e6cf'), [0.84, 0.27, -0.46], [0.92, 1.2, -0.6], 0.85);
-  balloon('Balloon', latex('#ffd1a6'), [0.84, 0.27, -0.46], [0.64, 1.05, -0.74], 0.72);
-  balloon('Heart', foil('#ffbcd2'), [0.84, 0.27, -0.46], [1.02, 0.93, -0.36], 0.8);
+  balloon('Balloon', latex('#ffadc9'), [-0.8, 0.34, -0.52], [-0.9, 1.22, -0.64], 0.85);
+  balloon('Balloon', latex('#cdb4ff'), [-0.8, 0.34, -0.52], [-0.6, 1.08, -0.78], 0.75);
+  balloon('Heart', foil('#f2c46d'), [-0.8, 0.34, -0.52], [-1.0, 0.95, -0.42], 0.8);
+  balloon('Balloon', latex('#a8e6cf'), [0.84, 0.31, -0.46], [0.92, 1.2, -0.6], 0.85);
+  balloon('Balloon', latex('#ffd1a6'), [0.84, 0.31, -0.46], [0.64, 1.05, -0.74], 0.72);
+  balloon('Heart', foil('#ffbcd2'), [0.84, 0.31, -0.46], [1.02, 0.93, -0.36], 0.8);
   // wider screens see a little more of the party
-  balloon('Balloon', latex('#b5dcff'), [1.75, 0.37, -0.35], [1.7, 1.45, -0.55], 0.9);
-  balloon('Balloon', latex('#fff0a6'), [1.75, 0.37, -0.35], [1.98, 1.3, -0.45], 0.8);
+  balloon('Balloon', latex('#b5dcff'), [1.75, 0.38, -0.35], [1.7, 1.45, -0.55], 0.9);
+  balloon('Balloon', latex('#fff0a6'), [1.75, 0.38, -0.35], [1.98, 1.3, -0.45], 0.8);
   balloon('Balloon', latex('#ffadc9'), [-1.8, 0.0, -0.6], [-1.75, 1.5, -0.7], 0.9);
   balloon('Heart', foil('#c9b3ff'), [-1.8, 0.0, -0.6], [-2.05, 1.25, -0.5], 0.85);
   balloon('Balloon', latex('#a8e6cf'), [-1.8, 0.0, -0.6], [-1.55, 1.3, -0.85], 0.75);
 
-  place(make('Cupcake', { Cupcake_Frosting: { color: '#ffc2dc', roughness: 0.5, sheen: 0.6, sheenColor: 0xffffff } }), [-0.62, 0, 0.9], 0.4);
+  place(make('Cupcake', { Cupcake_Frosting: { color: '#ffc2dc', roughness: 0.5, sheen: 0.6, sheenColor: 0xffffff } }), [-0.64, 0, 0.86], 0.4);
   place(make('Cupcake', { Cupcake_Frosting: { color: '#c9f0dd', roughness: 0.5, sheen: 0.6, sheenColor: 0xffffff } }), [-1.55, 0, 0.55], 2.1, 0.9);
+  // sweets: a cookie jar and a clay flower pot beside the stand, a marshmallow jar in front
+  const jar = { Jar_Glass: { color: '#ffffff', transparent: true, opacity: 0.22, roughness: 0.04, clearcoat: 1, depthWrite: false } };
+  for (const [name, pos, rot] of [['CookieJar', [-0.8, 0, 0.36], 0.3], ['MarshmallowJar', [0.66, 0, 0.88], -0.5]]) {
+    place(make(name, jar), pos, rot).traverse((o) => { if (o.isMesh && o.material.name === 'Jar_Glass') o.castShadow = false; });
+  }
+  place(make('FlowerPot'), [0.8, 0, 0.32], -0.4, 1.05);
   const shells = ['#ffb3cf', '#b8ecd7', '#d9c4ff', '#fff0a6'];
   shells.slice(0, 3).forEach((c, i) => {
     place(make('Macaron', { Macaron_Shell: { color: c, roughness: 0.6, sheen: 0.7, sheenColor: 0xffffff } }),
-      [0.6 + rand(-0.008, 0.008), i * 0.112, 0.86 + rand(-0.008, 0.008)], rand(0, 6));
+      [1.36 + rand(-0.008, 0.008), i * 0.112, 0.84 + rand(-0.008, 0.008)], rand(0, 6));
   });
-  const leaning = place(make('Macaron', { Macaron_Shell: { color: shells[3], roughness: 0.6, sheen: 0.7, sheenColor: 0xffffff } }), [0.73, 0.075, 0.95], 0);
+  const leaning = place(make('Macaron', { Macaron_Shell: { color: shells[3], roughness: 0.6, sheen: 0.7, sheenColor: 0xffffff } }), [1.49, 0.075, 0.93], 0);
   leaning.rotation.set(0, 0.6, 1.25);
-  const hat = place(make('PartyHat'), [-0.98, 0.1, 0.42], 0);
+  const hat = place(make('PartyHat'), [-1.42, 0.1, 0.62], 0);
   hat.rotation.set(0.1, 0.9, 1.45);
-  place(make('PartyHat'), [1.45, 0, 0.55], 0, 1.1);
+  place(make('PartyHat'), [1.72, 0, 0.45], 0, 1.1);
+  // glossy jelly hearts resting by the floor lights
+  for (const [x, z, c, s, ry] of [[0.06, 1.3, '#ff2e63', 0.3, 0.3], [-0.14, 1.4, '#ff7aa2', 0.22, -0.5], [0.3, 1.42, '#ffa3c0', 0.2, 0.9]]) {
+    const h = place(make('JellyHeart', jelly(c)), [x, 0.12 * s, z], 0, s);
+    h.rotation.set(-1.45, 0, ry);
+  }
+
+  // the melted candles that light the room: clusters front-left, front-right, beside the stand and behind it
+  const CREAM = '#fff1de', BLUSH = '#ffd3dc', LILAC = '#e6d8ff';
+  roomCandle('Candle_L', [-0.36, 1.0], CREAM, 'left');
+  roomCandle('Candle_S', [-0.22, 1.13], BLUSH, 'left');
+  roomCandle('Votive', [-0.47, 1.16], '#ff9fc0', 'left');
+  roomCandle('Candle_M', [-0.6, 0.6], BLUSH, 'left');
+  roomCandle('Candle_Puddle', [-0.96, 0.78], CREAM, 'left');
+  roomCandle('Candle_M', [0.35, 1.02], LILAC, 'right');
+  roomCandle('Votive', [0.21, 1.15], '#ffbe7a', 'right');
+  roomCandle('Candle_S', [0.47, 1.16], CREAM, 'right');
+  roomCandle('Candle_L', [0.57, 0.58], CREAM, 'right');
+  roomCandle('Votive', [0.98, 0.68], '#ff9fc0', 'right');
+  roomCandle('Candle_Puddle', [-0.04, 1.12], BLUSH, 'right');
+  roomCandle('Candle_L', [-0.5, -0.95], CREAM, 'back');
+  roomCandle('Candle_M', [0.52, -1.0], BLUSH, 'back');
+  roomCandle('Votive', [0.05, -1.12], '#ffbe7a', 'back');
+  roomCandle('Candle_L', [-1.3, 0.25], LILAC, 'none');
+  roomCandle('Votive', [1.25, 0.3], '#c9a8ff', 'none');
+  roomCandle('Candle_M', [1.2, 0.95], CREAM, 'none');
 
   bunting();
+  floorLights();
   floorConfetti();
   setupFalling();
   setupFloaters();
@@ -763,57 +956,226 @@ function animateDecor(t, dt) {
   });
   mesh.instanceMatrix.needsUpdate = true;
 
-  const glowCol = fairy.glow.geometry.attributes.color;
-  for (let i = 0; i < fairy.n; i++) {
-    const b = 0.55 + 0.45 * Math.sin(t * 2.2 + fairy.seeds[i] * 3) * Math.sin(t * 0.9 + fairy.seeds[i]);
-    fairy.c.setRGB(1, 0.82, 0.5).multiplyScalar(0.5 + 0.5 * b);
-    fairy.bulbs.setColorAt(i, fairy.c);
-    glowCol.setXYZ(i, b * 0.9, b * 0.7, b * 0.4);
+  // room candles: flicker, and the cluster lights follow how many of their candles are burning
+  const clusters = { left: [0, 0], right: [0, 0], back: [0, 0] };
+  for (const c of roomCandles) {
+    const k = 1 + 0.09 * Math.sin(t * 11 + c.seed) + 0.05 * Math.sin(t * 23.7 + c.seed * 2);
+    c.g.visible = c.life > 0.01;
+    c.g.scale.set(c.life * (1.03 - 0.03 * k), c.life * k, c.life * (1.03 - 0.03 * k));
+    c.g.rotation.z = Math.sin(t * 6 + c.seed) * 0.05;
+    c.glow.material.opacity = c.life * (0.75 + 0.25 * Math.sin(t * 15 + c.seed));
+    if (clusters[c.cluster]) { clusters[c.cluster][0] += c.life; clusters[c.cluster][1]++; }
   }
-  fairy.bulbs.instanceColor.needsUpdate = true;
-  glowCol.needsUpdate = true;
+  for (const [name, [sum, n]] of Object.entries(clusters)) lamps[name].level = n ? sum / n : 0;
+
+  // fairy lights: each bulb twinkles on its own rhythm once the string is switched on
+  const fg = fairy.glow.geometry.attributes.color;
+  for (let i = 0; i < fairy.n; i++) {
+    const b = fairy.level * (0.6 + 0.4 * Math.sin(t * 2.1 + fairy.seeds[i] * 3) * Math.sin(t * 0.8 + fairy.seeds[i]));
+    fairy.glass.setColorAt(i, fairy.c.copy(BULB_OFF).lerp(WARM, Math.min(1, b * 1.2)));
+    fg.setXYZ(i, b * 0.85, b * 0.62, b * 0.34);
+  }
+  fairy.glass.instanceColor.needsUpdate = true;
+  fg.needsUpdate = true;
+  const rg = rice.glow.geometry.attributes.color;
+  for (let i = 0; i < rice.n; i++) {   // a slow shimmer travelling along the wire
+    const b = rice.level * (0.55 + 0.45 * Math.sin(t * 2.4 - i * 0.45));
+    rice.bulbs.setColorAt(i, rice.c.copy(BULB_OFF).lerp(WARM, Math.min(1, b * 1.3)));
+    rg.setXYZ(i, b * 0.8, b * 0.58, b * 0.3);
+  }
+  rice.bulbs.instanceColor.needsUpdate = true;
+  rg.needsUpdate = true;
 
   const sc = sparkles.pts.geometry.attributes.color;
   sparkles.st.forEach((s, i) => {
     const w = Math.sin(t * s.speed + s.seed);
     if (w > 0 && s.prev <= 0) moveSparkle(i);    // jump somewhere new each time it fades in
     s.prev = w;
-    const b = Math.max(0, w) ** 3;
+    const b = sparkles.level * Math.max(0, w) ** 3;
     sc.setXYZ(i, b, b * 0.94, b * 0.8);
   });
   sc.needsUpdate = true;
 }
 
+// ------------------------------------------------------------------ the dark room: pop the balloons to turn on the lights
+const popBalloons = [], bits = [];
+let litStage = 0;
+const POP_COLORS = ['#ff9ec4', '#c9b3ff', '#9fe3c9'];
+
+function setupPopBalloons() {
+  const stringGeo = new THREE.TubeGeometry(new THREE.CatmullRomCurve3([
+    new THREE.Vector3(0, 0, 0), new THREE.Vector3(0.02, -0.15, 0), new THREE.Vector3(-0.02, -0.32, 0), new THREE.Vector3(0.01, -0.5, 0),
+  ]), 24, 0.0025, 4);
+  const stringLook = new THREE.MeshBasicMaterial({ color: 0x6a5470 });
+  POP_COLORS.forEach((color) => {
+    // LED balloons: a light inside makes them glow in the dark
+    const body = make('Balloon', { Balloon_Latex: { color, roughness: 0.3, clearcoat: 1, emissive: color, emissiveIntensity: 0.5 } }, false);
+    const glow = new THREE.Sprite(new THREE.SpriteMaterial({
+      map: softTex, color, blending: THREE.AdditiveBlending, transparent: true, depthWrite: false, depthTest: false, toneMapped: false, opacity: 0.75,
+    }));
+    glow.position.y = 0.33;
+    glow.scale.setScalar(0.85);
+    const hit = new THREE.Mesh(new THREE.SphereGeometry(0.42, 12, 10), new THREE.MeshBasicMaterial({ visible: false }));
+    hit.position.y = 0.33;
+    const g = new THREE.Group();
+    g.add(body, glow, new THREE.Mesh(stringGeo, stringLook), hit);
+    g.visible = false;
+    world.add(g);
+    popBalloons.push({ g, glow, hit, color, popped: false, ready: false, arrived: false, seed: rand(0, 6), home: new THREE.Vector3() });
+  });
+}
+
+function releasePopBalloons() {
+  const spots = [[-0.55, -0.08], [0.02, 0.14], [0.56, -0.14]];   // spread across the screen (NDC)
+  const S = 0.62;
+  popBalloons.forEach((b, i) => {
+    raycaster.setFromCamera(new THREE.Vector2(...spots[i]), camera);
+    b.home.copy(raycaster.ray.at(4.8, new THREE.Vector3())).add(new THREE.Vector3(0, -0.33 * S, 0));
+    b.g.scale.setScalar(S);
+    b.g.position.copy(b.home).add(new THREE.Vector3(0, -3.2, 0));
+    b.g.visible = true;
+    const from = b.g.position.clone();
+    setTimeout(() => { b.ready = true; }, i * 420 + 400);   // poppable while still rising
+    tween(2800, (e) => b.g.position.lerpVectors(from, b.home, e), { delay: i * 420, easing: ease.outCubic })
+      .then(() => { b.arrived = true; });
+  });
+}
+
+function animatePopBalloons(t, dt) {
+  for (const b of popBalloons) {
+    if (b.popped || !b.g.visible) continue;
+    if (b.arrived) b.g.position.y = b.home.y + Math.sin(t * 1.3 + b.seed) * 0.04;
+    b.g.rotation.z = Math.sin(t * 0.9 + b.seed) * 0.08;
+    b.glow.material.opacity = 0.65 + 0.12 * Math.sin(t * 2 + b.seed);
+  }
+  for (let i = bits.length - 1; i >= 0; i--) {   // latex scraps from popped balloons
+    const p = bits[i];
+    p.t += dt;
+    p.v.y -= 2.2 * dt;
+    p.m.position.addScaledVector(p.v, dt);
+    p.m.rotation.x += p.spin * dt;
+    p.m.rotation.y += p.spin * 0.7 * dt;
+    p.m.material.opacity = Math.max(0, 1 - p.t / 1.1);
+    if (p.t > 1.1) {
+      world.remove(p.m);
+      p.m.material.dispose();
+      bits.splice(i, 1);
+    }
+  }
+}
+
+const bitGeo = new THREE.CircleGeometry(0.03, 5);
+async function pop(b) {
+  if (b.popped || !b.ready) return;
+  b.popped = true;
+  music.pop();
+  navigator.vibrate?.(30);
+  const center = b.g.localToWorld(new THREE.Vector3(0, 0.33, 0));
+  await tween(70, (e) => b.g.scale.setScalar(0.62 * (1 + 0.25 * e)));
+  b.g.visible = false;
+  for (let i = 0; i < 18; i++) {
+    const m = new THREE.Mesh(bitGeo, new THREE.MeshBasicMaterial({ color: b.color, transparent: true, side: THREE.DoubleSide, toneMapped: false }));
+    m.position.copy(center);
+    m.scale.setScalar(rand(0.5, 1.2));
+    world.add(m);
+    const dir = new THREE.Vector3(rand(-1, 1), rand(-0.4, 1), rand(-1, 1)).normalize();
+    bits.push({ m, v: dir.multiplyScalar(rand(0.8, 1.6)), spin: rand(4, 12), t: 0 });
+  }
+  fire({ particleCount: 36, spread: 360, startVelocity: 18, scalar: 0.8, ticks: 110, gravity: 0.8, colors: [b.color, '#ffffff', '#ffe3a3'], origin: toScreen(center) });
+  lightStage(++litStage);
+}
+
+function pickPopBalloon(x, y) {
+  raycaster.setFromCamera(ndc(x, y), camera);
+  const live = popBalloons.filter((b) => b.ready && !b.popped);
+  const hit = raycaster.intersectObjects(live.map((b) => b.hit), false)[0];
+  return hit && live.find((b) => b.hit === hit.object);
+}
+
+function setBlackout(v) { $('#blackout').style.opacity = v; }
+
+async function lightStage(n, instant = false) {
+  const hint = $('#darkHint');
+  if (n === 1) {             // the fairy lights
+    setBlackout(0.7);
+    switchOn(fairy, { ms: instant ? 1 : 900 });
+    switchOn(rice, { delay: instant ? 0 : 250, ms: instant ? 1 : 1200 });
+    switchOn(lamps.fairy, { ms: instant ? 1 : 900 });
+    switchOn(lamps.moon, { ms: instant ? 1 : 1500, to: 0.25 });
+    if (!instant) swapText(hint, fill(CONFIG.popMore2));
+  } else if (n === 2) {      // the candles around the room, one after another
+    setBlackout(0.35);
+    roomCandles.forEach((c, i) => {
+      tween(instant ? 1 : 420, (e) => { c.life = e; }, { delay: instant ? 0 : i * 110, easing: ease.outBack });
+    });
+    tween(instant ? 1 : 1200, (e) => { for (const m of votiveGlass) m.emissiveIntensity = 0.35 * e; }, { delay: instant ? 0 : 400 });
+    switchOn(lamps.moon, { ms: instant ? 1 : 1500, to: 0.5 });
+    tween(instant ? 1 : 1500, (e) => { room.env = room.envMax * 0.4 * e; });
+    if (!instant) swapText(hint, fill(CONFIG.popMore1));
+  } else if (n === 3) {      // the cake: candles ignite, the spotlight fades up, the room warms
+    setBlackout(0);
+    flames.forEach((f, i) => {
+      tween(instant ? 1 : 380, (e) => { f.userData.life = e; }, { delay: instant ? 0 : 300 + i * 160, easing: ease.outBack });
+    });
+    switchOn(lamps.spot, { delay: instant ? 0 : 900, ms: instant ? 1 : 1600 });
+    switchOn(lamps.moon, { ms: instant ? 1 : 2000 });
+    tween(instant ? 1 : 2000, (e) => { room.env = room.envMax * (0.4 + 0.6 * e); });
+    tween(instant ? 1 : 2500, (e) => { sparkles.level = e; }, { delay: instant ? 0 : 1200 });
+    music.duck(VOLUME);
+    controls.enabled = true;
+    if (instant) {
+      hint.classList.add('hidden');
+      $('#cake .top').classList.remove('hidden');
+      cakeReadyAt = performance.now();
+      return;
+    }
+    hint.classList.add('hidden');
+    await sleep(1500);
+    music.chime();
+    fire({ particleCount: 90, spread: 110, startVelocity: 38, origin: { y: 0.5 }, scalar: 0.9 });
+    $('#cake .top').classList.remove('hidden');
+    cakeReadyAt = performance.now() + 1200;
+  }
+}
+
+async function startCake({ lit = false } = {}) {
+  go('cake');
+  turntable.visible = true;
+  frame(cakeBox, 14, 1.3);
+  if (lit) {
+    for (let n = 1; n <= 3; n++) lightStage(n, true);
+    litStage = 3;
+    return;
+  }
+  music.duck(0.14);
+  $('#cake .top').classList.add('hidden');
+  const hint = $('#darkHint');
+  hint.textContent = fill(CONFIG.darkHint);
+  await sleep(1600);
+  hint.classList.remove('hidden');
+  await sleep(2000);
+  releasePopBalloons();
+  swapText(hint, fill(CONFIG.popPrompt));
+}
+
 // ------------------------------------------------------------------ gifts
-const GIFT_COLORS = [
-  { paper: '#ff9ec4', ribbon: '#ffffff' },
-  { paper: '#c7b2ff', ribbon: '#f6cf6e' },
-  { paper: '#9fe3c9', ribbon: '#ff9ec4' },
-];
 const gifts = new THREE.Group();
 const giftItems = [];
 let giftBox, giftBusy = false;
 
-function setupGifts(gltf) {
+function setupGifts() {
   const portrait = innerWidth / innerHeight < 0.9;
   const layout = portrait
     ? [[-0.33, -0.2], [0.33, -0.2], [0, 0.38]]
     : [[-0.64, 0], [0, 0.12], [0.64, 0]];
   CONFIG.gifts.slice(0, 3).forEach((content, i) => {
-    const root = gltf.scene.clone(true);
-    const col = GIFT_COLORS[i % GIFT_COLORS.length];
-    root.traverse((o) => {
-      if (!o.isMesh) return;
-      o.castShadow = o.receiveShadow = true;
-      o.material = o.material.clone();   // own materials, so fading one lid leaves the rest alone
-      o.material.color.set(o.material.name === 'Gift_Paper' ? col.paper : col.ribbon);
-    });
-    const scale = [0.42, 0.4, 0.44][i];
+    const root = dreamGift(DREAMS[i]);   // every box gets its own materials, so fading one lid leaves the rest alone
+    const scale = [0.4, 0.38, 0.42][i];
     root.position.set(layout[i][0], 0, layout[i][1]);
     root.rotation.y = rand(-0.45, 0.45);
     root.scale.setScalar(scale);
     gifts.add(root);
-    giftItems.push({ root, lid: root.getObjectByName('Lid'), content, scale, opened: false, seed: rand(0, 6) });
+    giftItems.push({ root, lid: root.getObjectByName('DreamGift_Lid'), content, scale, opened: false, seed: rand(0, 6) });
   });
   giftBox = new THREE.Box3().setFromObject(gifts);   // before the invisible helpers below are added
   for (const it of giftItems) {
@@ -860,9 +1222,8 @@ async function toGifts() {
   });
 }
 
-const raycaster = new THREE.Raycaster();
 function pickGift(x, y) {
-  raycaster.setFromCamera(new THREE.Vector2((x / innerWidth) * 2 - 1, -(y / innerHeight) * 2 + 1), camera);
+  raycaster.setFromCamera(ndc(x, y), camera);
   const hit = raycaster.intersectObjects(giftItems.map((it) => it.hit), false)[0];
   return hit && giftItems.find((it) => it.hit === hit.object);
 }
@@ -893,8 +1254,7 @@ async function openGift(it) {
     spark.scale.setScalar(0.001 + e * 0.75);
     spark.material.opacity = Math.min(1, e * 2);
   }, { delay: 120, easing: ease.outBack }).then(() => { spark.userData.up = true; });
-  const p = root.localToWorld(new THREE.Vector3(0, 1.2, 0)).project(camera);
-  fire({ particleCount: 70, spread: 75, startVelocity: 28, scalar: 0.85, origin: { x: (p.x + 1) / 2, y: (1 - p.y) / 2 } });
+  fire({ particleCount: 70, spread: 75, startVelocity: 28, scalar: 0.85, origin: toScreen(root.localToWorld(new THREE.Vector3(0, 1.2, 0))) });
   await sleep(750);
   await showCard(it.content);
   giftBusy = false;
@@ -926,7 +1286,13 @@ function showCard(c) {
 
 // taps (not drags) on the 3D stage
 let down = null;
-canvas.addEventListener('pointerdown', (e) => { down = { x: e.clientX, y: e.clientY, t: performance.now() }; });
+canvas.addEventListener('pointerdown', (e) => {
+  down = { x: e.clientX, y: e.clientY, t: performance.now() };
+  if (scene === 'cake' && litStage < 3) {   // popping should feel instant, so react on touch down
+    const b = pickPopBalloon(e.clientX, e.clientY);
+    if (b) { pop(b); down = null; }
+  }
+});
 canvas.addEventListener('pointerup', (e) => {
   if (!down) return;
   const tap = Math.hypot(e.clientX - down.x, e.clientY - down.y) < 10 && performance.now() - down.t < 450;
@@ -1054,6 +1420,21 @@ $('#envelope').addEventListener('click', async () => {
   startCake();
 }, { once: true });
 
+// phones vary a lot: if the room renders slowly, drop the resolution a little (once or twice)
+const perf = { frames: 0, time: 0, drops: 0 };
+function watchPerformance(dt) {
+  if (params.has('hq') || perf.drops >= 2) return;
+  perf.frames++;
+  perf.time += dt;
+  if (perf.frames < 90) return;
+  if (perf.time / perf.frames > 1 / 38) {
+    renderer.setPixelRatio(Math.max(1, renderer.getPixelRatio() * 0.75));
+    resize();
+    perf.drops++;
+  }
+  perf.frames = perf.time = 0;
+}
+
 let last = performance.now();
 function loop(now) {
   requestAnimationFrame(loop);
@@ -1063,26 +1444,33 @@ function loop(now) {
   stepTweens(now);
   sky.draw(dt, t);
   if (scene !== 'cake' && scene !== 'gifts') return;
+  updateLamps(t);
   animateFlames(t);
   animateGifts(t);
   animateDecor(t, dt);
+  animatePopBalloons(t, dt);
   stepPuffs(dt);
   if (turntable.visible) turntable.rotation.y += dt * 0.16;
   if (controls.enabled) controls.update();
   renderer.render(world, camera);
+  watchPerformance(dt);
 }
 requestAnimationFrame(loop);
 
 try {
-  const [cakeGltf, decorLoaded, giftGltf] = await Promise.all([
-    load('assets/cake.glb', 'cake'), load('assets/decor.glb', 'decor'), load('assets/gift.glb', 'gift'),
-  ]);
+  const [cakeGltf, decorLoaded] = await Promise.all([load('assets/cake.glb', 'cake'), load('assets/decor.glb', 'decor')]);
   decorGltf = decorLoaded;
   setupCake(cakeGltf);
-  setupDecor(giftGltf);
-  setupGifts(giftGltf);
+  setupDecor();
+  setupGifts();
+  setupPopBalloons();
   buildStack();
-  renderer.compile(world, camera);
+  // compile every shader while the loader is still showing, so nothing stutters when the room lights up
+  const hidden = [turntable, gifts, ...popBalloons.map((b) => b.g)];
+  hidden.forEach((o) => { o.visible = true; });
+  frame(cakeBox, 14, 1.3);
+  await (renderer.compileAsync ? renderer.compileAsync(world, camera) : renderer.compile(world, camera));
+  hidden.forEach((o) => { o.visible = false; });
   await Promise.race([document.fonts.ready, sleep(2500)]);
   $('#progress').style.width = '100%';
   await sleep(500);
@@ -1092,13 +1480,14 @@ try {
   throw err;
 }
 
-// ?scene=cake|gifts|photos|letter|end jumps straight to a part (handy for previewing)
+// ?scene=cake|lit|gifts|photos|letter|end jumps straight to a part (handy for previewing)
 const jump = params.get('scene');
 if (jump === 'cake') startCake();
-else if (jump === 'gifts') { startCake(); wished = true; flames.forEach((f) => { f.userData.life = 0; }); toGifts(); }
+else if (jump === 'lit') startCake({ lit: true });
+else if (jump === 'gifts') { startCake({ lit: true }); wished = true; flames.forEach((f) => { f.userData.life = 0; }); toGifts(); }
 else if (jump === 'photos') go('photos');
 else if (jump === 'letter') typeLetter();
 else if (jump === 'end') ending();
 else go('intro');
 
-window.surprise = { blowOut, toGifts, openGift: (i) => openGift(giftItems[i]), go };
+window.surprise = { blowOut, toGifts, openGift: (i) => openGift(giftItems[i]), pop: (i) => pop(popBalloons[i]), go };
