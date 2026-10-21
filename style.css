@@ -1,11 +1,12 @@
 :root {
-  --pink: #ff8fb8;
-  --pink-deep: #f06a9b;
-  --pink-soft: #ffd6e7;
-  --lav: #e9d8ff;
-  --cream: #fff8f3;
-  --ink: #6b3a54;
-  --ink-soft: #9a6a82;
+  --lav-light: #e9dfff;       /* her favourite: light lavender */
+  --lav: #c9b2ff;
+  --lav-deep: #8c66dc;
+  --pink: #f7a8cf;            /* a little pink and gold, so the lavender isn't flat */
+  --pink-soft: #fde2f0;
+  --cream: #fdfbff;
+  --ink: #4b3a6b;
+  --ink-soft: #7c6b9c;
   --gold: #f2c46d;
   --hand: "Caveat", "Segoe Print", cursive;
   --ui: "Quicksand", system-ui, -apple-system, sans-serif;
@@ -27,11 +28,11 @@ body {
   font-family: var(--ui);
   color: var(--ink);
   background:
-    radial-gradient(120% 70% at 50% 0%, #fff4f8 0%, transparent 60%),
-    radial-gradient(90% 60% at 100% 100%, var(--lav) 0%, transparent 70%),
-    radial-gradient(90% 60% at 0% 90%, #ffe9d6 0%, transparent 70%),
-    linear-gradient(180deg, #ffe3ee 0%, #ffd9e8 45%, #f6dcf5 100%);
-  background-color: #ffe3ee;
+    radial-gradient(120% 70% at 50% 0%, #fbf8ff 0%, transparent 60%),
+    radial-gradient(90% 60% at 100% 100%, #f8def0 0%, transparent 70%),
+    radial-gradient(90% 60% at 0% 90%, #dde5ff 0%, transparent 70%),
+    linear-gradient(180deg, #f1eaff 0%, #e7ddff 45%, #ded2fa 100%);
+  background-color: #ece4ff;
   -webkit-user-select: none;
   user-select: none;
   -webkit-font-smoothing: antialiased;
@@ -59,8 +60,8 @@ body[data-scene="cake"] #stage,
 body[data-scene="gifts"] #stage { opacity: 1; pointer-events: auto; }
 body[data-scene="cake"] #stage { transition-delay: 0.9s; }   /* wait for the room to go black first */
 
-/* the 3D party starts in the dark: the blackout (#shade) lifts as the balloons are popped, revealing a deep berry room
-   with the floating hearts drifting through it (?bg=pastel: the light pink page itself) */
+/* the 3D party starts in the dark: the blackout (#shade) lifts as the balloons are popped, revealing a deep violet room
+   with the floating hearts drifting through it (?bg=pastel: the light lavender page itself) */
 #night, #shade {
   position: fixed;
   inset: 0;
@@ -71,25 +72,25 @@ body[data-scene="cake"] #stage { transition-delay: 0.9s; }   /* wait for the roo
 }
 body[data-bg="dark"] #night {
   background:
-    radial-gradient(65% 40% at 50% 56%, rgba(170, 70, 130, 0.42), transparent 75%),
-    radial-gradient(circle at 15% 22%, rgba(255, 196, 150, 0.12), transparent 7%),
-    radial-gradient(circle at 82% 30%, rgba(255, 160, 210, 0.12), transparent 8%),
-    radial-gradient(circle at 70% 12%, rgba(255, 210, 170, 0.09), transparent 5%),
-    radial-gradient(circle at 26% 84%, rgba(255, 170, 200, 0.08), transparent 9%),
-    linear-gradient(180deg, #250d22 0%, #37132f 52%, #1f0a1d 100%);
+    radial-gradient(65% 40% at 50% 56%, rgba(130, 95, 215, 0.42), transparent 75%),
+    radial-gradient(circle at 15% 22%, rgba(255, 205, 160, 0.12), transparent 7%),
+    radial-gradient(circle at 82% 30%, rgba(205, 180, 255, 0.13), transparent 8%),
+    radial-gradient(circle at 70% 12%, rgba(255, 215, 180, 0.09), transparent 5%),
+    radial-gradient(circle at 26% 84%, rgba(215, 190, 255, 0.09), transparent 9%),
+    linear-gradient(180deg, #170f2e 0%, #251a46 52%, #120b25 100%);
 }
 #blackout { position: absolute; inset: 0; background: #000; transition: opacity 1.8s ease; }
 body[data-scene="cake"] #night, body[data-scene="cake"] #shade,
 body[data-scene="gifts"] #night, body[data-scene="gifts"] #shade { opacity: 1; }
 body[data-bg="dark"][data-scene="cake"] .title,
-body[data-bg="dark"][data-scene="gifts"] .title { color: #fff1f6; text-shadow: 0 0 20px rgba(255, 130, 185, 0.6), 0 2px 0 rgba(50, 10, 35, 0.6); }
+body[data-bg="dark"][data-scene="gifts"] .title { color: #f7f2ff; text-shadow: 0 0 20px rgba(175, 145, 255, 0.65), 0 2px 0 rgba(28, 16, 58, 0.6); }
 body[data-bg="dark"][data-scene="cake"] .hint,
 body[data-bg="dark"][data-scene="gifts"] .hint {
-  color: rgba(255, 230, 241, 0.94);
-  text-shadow: 0 1px 2px rgba(25, 6, 22, 0.95), 0 0 10px rgba(25, 6, 22, 0.85);   /* readable over the bunting */
+  color: rgba(240, 233, 255, 0.95);
+  text-shadow: 0 1px 2px rgba(16, 10, 36, 0.95), 0 0 10px rgba(16, 10, 36, 0.85);   /* readable over the bunting */
 }
 body[data-bg="dark"][data-scene="cake"] .top::before,
-body[data-bg="dark"][data-scene="gifts"] .top::before { background: radial-gradient(closest-side, rgba(18, 6, 20, 0.6), rgba(18, 6, 20, 0.3) 55%, transparent); }
+body[data-bg="dark"][data-scene="gifts"] .top::before { background: radial-gradient(closest-side, rgba(14, 9, 32, 0.6), rgba(14, 9, 32, 0.3) 55%, transparent); }
 body[data-bg="dark"][data-scene="cake"] .mute,
 body[data-bg="dark"][data-scene="gifts"] .mute { background: rgba(255, 255, 255, 0.14); }
 
@@ -104,8 +105,8 @@ body[data-bg="dark"][data-scene="gifts"] .mute { background: rgba(255, 255, 255,
   font-size: clamp(1.7rem, 7.5vw, 2.3rem);
   line-height: 1.15;
   text-align: center;
-  color: #ffe6f0;
-  text-shadow: 0 0 16px rgba(255, 160, 200, 0.6);
+  color: #efe7ff;
+  text-shadow: 0 0 16px rgba(185, 155, 255, 0.65);
   text-wrap: balance;
   transition: opacity 0.5s ease;
 }
@@ -155,7 +156,7 @@ body[data-bg="dark"][data-scene="gifts"] .mute { background: rgba(255, 255, 255,
   position: absolute;
   inset: -30px -50px -24px;
   z-index: -1;
-  background: radial-gradient(closest-side, rgba(255, 244, 249, 0.85), rgba(255, 244, 249, 0.55) 55%, transparent);
+  background: radial-gradient(closest-side, rgba(249, 245, 255, 0.85), rgba(249, 245, 255, 0.55) 55%, transparent);
   pointer-events: none;
 }
 .bottom { min-height: 64px; justify-content: flex-end; }
@@ -168,7 +169,7 @@ body[data-bg="dark"][data-scene="gifts"] .mute { background: rgba(255, 255, 255,
   font-size: clamp(2.1rem, 9vw, 3rem);
   line-height: 1.02;
   color: var(--ink);
-  text-shadow: 0 2px 0 #fff, 0 6px 18px rgba(255, 143, 184, 0.45);
+  text-shadow: 0 2px 0 #fff, 0 6px 18px rgba(160, 125, 240, 0.45);
   text-wrap: balance;
 }
 .title.big { font-size: clamp(2.5rem, 11vw, 3.8rem); }
@@ -177,7 +178,7 @@ body[data-bg="dark"][data-scene="gifts"] .mute { background: rgba(255, 255, 255,
   font-weight: 700;
   font-size: 0.95rem;
   letter-spacing: 0.14em;
-  color: var(--pink-deep);
+  color: var(--lav-deep);
 }
 .hint {
   margin: 0;
@@ -212,8 +213,8 @@ body[data-bg="dark"][data-scene="gifts"] .mute { background: rgba(255, 255, 255,
   font-size: 1.05rem;
   color: #fff;
   text-decoration: none;
-  background: linear-gradient(135deg, #ffa3c4 0%, var(--pink-deep) 100%);
-  box-shadow: 0 10px 24px rgba(240, 106, 155, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.5);
+  background: linear-gradient(135deg, #b99cf7 0%, var(--lav-deep) 100%);
+  box-shadow: 0 10px 24px rgba(140, 102, 220, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.5);
   transition: scale 0.25s cubic-bezier(.2, .8, .2, 1), box-shadow 0.25s ease, opacity 0.5s ease, visibility 0s;
   animation: bob 3s ease-in-out infinite;
 }
@@ -221,7 +222,7 @@ body[data-bg="dark"][data-scene="gifts"] .mute { background: rgba(255, 255, 255,
 .btn.ghost {
   color: var(--ink);
   background: rgba(255, 255, 255, 0.55);
-  box-shadow: 0 4px 14px rgba(107, 58, 84, 0.1);
+  box-shadow: 0 4px 14px rgba(75, 58, 107, 0.1);
   animation: none;
 }
 .btn.small { min-height: 44px; padding: 0 22px; font-size: 1rem; animation: none; }
@@ -249,7 +250,7 @@ body[data-bg="dark"][data-scene="gifts"] .mute { background: rgba(255, 255, 255,
   background: rgba(255, 255, 255, 0.55);
   -webkit-backdrop-filter: blur(8px);
   backdrop-filter: blur(8px);
-  box-shadow: 0 4px 14px rgba(107, 58, 84, 0.12);
+  box-shadow: 0 4px 14px rgba(75, 58, 107, 0.12);
   transition: opacity 0.5s ease;
 }
 
@@ -265,8 +266,8 @@ body[data-bg="dark"][data-scene="gifts"] .mute { background: rgba(255, 255, 255,
   font-size: 0.92rem;
   font-weight: 700;
   color: #fff;
-  background: rgba(60, 20, 48, 0.85);
-  box-shadow: 0 8px 22px rgba(40, 10, 30, 0.25);
+  background: rgba(46, 32, 82, 0.88);
+  box-shadow: 0 8px 22px rgba(30, 18, 60, 0.25);
   transform: translateX(-50%);
   transition: opacity 0.4s ease;
 }
@@ -289,7 +290,7 @@ body[data-bg="dark"][data-scene="gifts"] .mute { background: rgba(255, 255, 255,
   width: 0%;
   height: 100%;
   border-radius: inherit;
-  background: linear-gradient(90deg, var(--pink), var(--gold));
+  background: linear-gradient(90deg, var(--lav), var(--pink));
   transition: width 0.3s ease;
 }
 
@@ -313,8 +314,8 @@ body[data-bg="dark"][data-scene="gifts"] .mute { background: rgba(255, 255, 255,
   inset: 0;
   z-index: 1;
   border-radius: 10px;
-  background: #f7a6c3;
-  box-shadow: 0 18px 40px rgba(240, 106, 155, 0.35);
+  background: #c4a9f6;
+  box-shadow: 0 18px 40px rgba(140, 102, 220, 0.35);
 }
 .env-letter {
   z-index: 2;
@@ -328,29 +329,29 @@ body[data-bg="dark"][data-scene="gifts"] .mute { background: rgba(255, 255, 255,
   padding: 14% 10% 0;
   border-radius: 6px;
   background:
-    repeating-linear-gradient(180deg, transparent 0 27px, rgba(240, 106, 155, 0.12) 27px 28px),
+    repeating-linear-gradient(180deg, transparent 0 27px, rgba(140, 102, 220, 0.12) 27px 28px),
     var(--cream);
   font-family: var(--hand);
   font-weight: 700;
   font-size: clamp(1.25rem, 5.4vw, 1.6rem);
   line-height: 1.1;
   color: var(--ink);
-  box-shadow: 0 2px 8px rgba(107, 58, 84, 0.12);
+  box-shadow: 0 2px 8px rgba(75, 58, 107, 0.12);
   transition: transform 0.9s cubic-bezier(.2, .8, .2, 1) 0.55s;
 }
 .env-front {
   inset: 0;
   z-index: 3;
   border-radius: 10px;
-  background: linear-gradient(180deg, #ffc2d8 0%, #ffb3cf 100%);
+  background: linear-gradient(180deg, #e4d6ff 0%, #d5c2fc 100%);
   clip-path: polygon(0 0, 50% 54%, 100% 0, 100% 100%, 0 100%);
 }
 .env-front::after {
   content: "";
   position: absolute;
   inset: 0;
-  background: linear-gradient(155deg, transparent 49.6%, rgba(240, 106, 155, 0.22) 50%, transparent 50.8%),
-              linear-gradient(205deg, transparent 49.6%, rgba(240, 106, 155, 0.22) 50%, transparent 50.8%);
+  background: linear-gradient(155deg, transparent 49.6%, rgba(140, 102, 220, 0.22) 50%, transparent 50.8%),
+              linear-gradient(205deg, transparent 49.6%, rgba(140, 102, 220, 0.22) 50%, transparent 50.8%);
   background-size: 100% 100%;
 }
 .env-flap {
@@ -359,7 +360,7 @@ body[data-bg="dark"][data-scene="gifts"] .mute { background: rgba(255, 255, 255,
   top: 0;
   height: 60%;
   z-index: 4;
-  background: linear-gradient(180deg, #ff9ec0 0%, #ffb0cc 100%);
+  background: linear-gradient(180deg, #c3a6f7 0%, #d3bffb 100%);
   clip-path: polygon(0 0, 100% 0, 50% 100%);
   border-radius: 10px 10px 0 0;
   transform-origin: 50% 0;
@@ -377,8 +378,8 @@ body[data-bg="dark"][data-scene="gifts"] .mute { background: rgba(255, 255, 255,
   border-radius: 50%;
   font-size: 1.3rem;
   color: #fff;
-  background: radial-gradient(circle at 35% 30%, #ff7aa7, #d94a7e 70%);
-  box-shadow: 0 3px 8px rgba(160, 30, 80, 0.35), inset 0 -3px 6px rgba(120, 0, 50, 0.25);
+  background: radial-gradient(circle at 35% 30%, #ff94c4, #e0679f 70%);
+  box-shadow: 0 3px 8px rgba(160, 40, 100, 0.35), inset 0 -3px 6px rgba(120, 10, 70, 0.25);
   transition: transform 0.35s cubic-bezier(.5, 0, .5, 1.5), opacity 0.3s ease;
 }
 #intro .kicker, #intro .title { transition: opacity 0.5s ease, transform 0.6s ease; }
@@ -401,8 +402,8 @@ body[data-bg="dark"][data-scene="gifts"] .mute { background: rgba(255, 255, 255,
   inset: 0;
   padding: 12px 12px 0;
   border-radius: 4px;
-  background: #fffdfb;
-  box-shadow: 0 14px 32px rgba(107, 58, 84, 0.2), 0 2px 6px rgba(107, 58, 84, 0.08);
+  background: #fefcff;
+  box-shadow: 0 14px 32px rgba(75, 58, 107, 0.2), 0 2px 6px rgba(75, 58, 107, 0.08);
   transform: rotate(var(--r, 0deg));
   touch-action: none;
   cursor: grab;
@@ -414,7 +415,7 @@ body[data-bg="dark"][data-scene="gifts"] .mute { background: rgba(255, 255, 255,
   width: 100%;
   aspect-ratio: 1;
   border-radius: 2px;
-  background: linear-gradient(135deg, var(--pink-soft), var(--lav));
+  background: linear-gradient(135deg, var(--lav-light), var(--lav));
   overflow: hidden;
 }
 .polaroid img {
@@ -445,10 +446,10 @@ body[data-bg="dark"][data-scene="gifts"] .mute { background: rgba(255, 255, 255,
   height: 26px;
   margin-left: -42px;
   transform: rotate(-4deg);
-  background: rgba(255, 196, 220, 0.75);
+  background: rgba(205, 182, 255, 0.8);
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06);
 }
-.polaroid:nth-child(3n+2)::before { background: rgba(233, 216, 255, 0.85); transform: rotate(3deg); }
+.polaroid:nth-child(3n+2)::before { background: rgba(255, 200, 228, 0.8); transform: rotate(3deg); }
 .polaroid:nth-child(3n)::before { background: rgba(255, 233, 180, 0.8); }
 
 /* ------------------------------------------------------------ letter */
@@ -463,11 +464,11 @@ body[data-bg="dark"][data-scene="gifts"] .mute { background: rgba(255, 255, 255,
   border-radius: 6px;
   text-align: left;
   background:
-    linear-gradient(90deg, transparent 36px, rgba(240, 106, 155, 0.35) 36px 37.5px, transparent 37.5px),
-    repeating-linear-gradient(180deg, transparent 0 33px, rgba(150, 170, 220, 0.28) 33px 34px),
+    linear-gradient(90deg, transparent 36px, rgba(140, 102, 220, 0.35) 36px 37.5px, transparent 37.5px),
+    repeating-linear-gradient(180deg, transparent 0 33px, rgba(160, 155, 225, 0.3) 33px 34px),
     var(--cream);
   background-attachment: local;
-  box-shadow: 0 18px 44px rgba(107, 58, 84, 0.2);
+  box-shadow: 0 18px 44px rgba(75, 58, 107, 0.2);
   transform: rotate(-0.6deg);
   scrollbar-width: none;
 }
@@ -477,7 +478,7 @@ body[data-bg="dark"][data-scene="gifts"] .mute { background: rgba(255, 255, 255,
   font-weight: 500;
   font-size: clamp(1.32rem, 5.6vw, 1.55rem);
   line-height: 34px;
-  color: #4d2a3d;
+  color: #3d2f5a;
 }
 .hand p { margin: 0 0 34px; min-height: 34px; }
 .hand p:last-child { margin-bottom: 0; }
@@ -488,7 +489,7 @@ body[data-bg="dark"][data-scene="gifts"] .mute { background: rgba(255, 255, 255,
   height: 1.05em;
   margin-left: 2px;
   vertical-align: -0.12em;
-  background: var(--pink-deep);
+  background: var(--lav-deep);
   animation: blink 0.8s steps(1) infinite;
 }
 @keyframes blink { 50% { opacity: 0; } }
@@ -508,7 +509,7 @@ body[data-bg="dark"][data-scene="gifts"] .mute { background: rgba(255, 255, 255,
   aspect-ratio: 1;
   border-radius: 50%;
   object-fit: cover;
-  box-shadow: 0 0 0 8px rgba(255, 255, 255, 0.6), 0 20px 50px rgba(240, 106, 155, 0.35);
+  box-shadow: 0 0 0 8px rgba(255, 255, 255, 0.6), 0 20px 50px rgba(140, 102, 220, 0.35);
   animation: float 4s ease-in-out infinite;
   pointer-events: none;        /* no "download image" menu on a long press */
 }
@@ -530,7 +531,7 @@ body[data-bg="dark"][data-scene="gifts"] .mute { background: rgba(255, 255, 255,
   display: grid;
   place-items: center;
   padding: 24px;
-  background: rgba(107, 58, 84, 0.18);
+  background: rgba(75, 58, 107, 0.18);
   -webkit-backdrop-filter: blur(6px);
   backdrop-filter: blur(6px);
   transition: opacity 0.4s ease;
@@ -543,8 +544,8 @@ body[data-bg="dark"][data-scene="gifts"] .mute { background: rgba(255, 255, 255,
   text-align: center;
   background:
     radial-gradient(120% 60% at 50% 0%, #fff 0%, transparent 70%),
-    linear-gradient(180deg, #fff9fb 0%, #ffeef5 100%);
-  box-shadow: 0 30px 60px rgba(107, 58, 84, 0.25);
+    linear-gradient(180deg, #fcfaff 0%, #f1eaff 100%);
+  box-shadow: 0 30px 60px rgba(75, 58, 107, 0.25);
   transform: scale(1);
   transition: transform 0.5s cubic-bezier(.3, 1.5, .5, 1);
 }
@@ -573,7 +574,7 @@ body[data-bg="dark"][data-scene="gifts"] .mute { background: rgba(255, 255, 255,
   display: none;
   place-items: center;
   text-align: center;
-  background: linear-gradient(180deg, #ffe3ee 0%, #ffd9e8 45%, #f6dcf5 100%);
+  background: linear-gradient(180deg, #f1eaff 0%, #e7ddff 45%, #ded2fa 100%);
   font-family: var(--hand);
   font-weight: 700;
   font-size: 1.9rem;
@@ -595,5 +596,5 @@ body[data-bg="dark"][data-scene="gifts"] .mute { background: rgba(255, 255, 255,
 /* In dark mode Samsung Internet (and Chrome, when asked to) recolour light-only pages, which turns the pastel pages muddy.
    A page that declares dark support (color-scheme) and has dark rules is left alone, so these keep the same light look. */
 @media (prefers-color-scheme: dark) {
-  body { background-color: #ffe3ee; color: var(--ink); }
+  body { background-color: #ece4ff; color: var(--ink); }
 }

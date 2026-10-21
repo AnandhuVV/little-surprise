@@ -12,10 +12,10 @@
   <meta property="og:image:height" content="630">
   <meta property="og:type" content="website">
   <meta property="og:url" content="https://AnandhuVV.github.io/little-surprise/">
-  <meta name="theme-color" content="#ffdcea">
+  <meta name="theme-color" content="#ece4ff">
   <!-- claims dark support so Samsung Internet / Chrome don't force-darken the pastel pages (style.css keeps them light) -->
   <meta name="color-scheme" content="light dark">
-  <style>html { background: #ffe3ee; }</style><!-- pink from the first frame, not the browser's dark blank page -->
+  <style>html { background: #ece4ff; }</style><!-- lavender from the first frame, not the browser's dark blank page -->
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎂</text></svg>">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -28,7 +28,7 @@
     addEventListener('error', (e) => {
       if (/specifier/i.test(e.message || '')) return;
       const hint = document.querySelector('#loading.active .hint');
-      if (hint) hint.textContent = 'hmm, this browser is being shy. try opening the link in Safari or Chrome 💗';
+      if (hint) hint.textContent = 'hmm, this browser is being shy. try opening the link in Safari or Chrome 💜';
     });
   </script>
   <script async src="https://cdn.jsdelivr.net/npm/es-module-shims@1.10.0/dist/es-module-shims.js"></script>
@@ -49,7 +49,7 @@
   <button id="mute" class="mute hidden" aria-label="Mute music">🔊</button>
 
   <section id="loading" class="scene active">
-    <div class="loader-heart">💗</div>
+    <div class="loader-heart">💜</div>
     <p class="hint">wrapping your surprise…</p>
     <div class="bar"><span id="progress"></span></div>
   </section>
@@ -109,18 +109,18 @@
     <p class="hint" data-text="endingPrompt"></p>
     <a id="reply" class="btn" target="_blank" rel="noopener" data-text="replyButton"></a>
     <button id="replay" class="btn ghost">watch again ↺</button>
-    <p class="made">made with 💗 by <span data-from></span></p>
+    <p class="made">made with 💜 by <span data-from></span></p>
   </section>
 
   <p id="toast" class="toast hidden" role="status"></p>
-  <div id="rotate"><div><span class="rotate-phone">📱</span><p>turn your phone upright 🌸</p></div></div>
+  <div id="rotate"><div><span class="rotate-phone">📱</span><p>turn your phone upright 💜</p></div></div>
 
   <div id="card" class="modal hidden" role="dialog" aria-modal="true">
     <div class="card">
       <div class="card-emoji"></div>
       <h3 class="card-title"></h3>
       <p class="card-text"></p>
-      <button class="btn small" id="cardClose">aww 💗</button>
+      <button class="btn small" id="cardClose">aww 💜</button>
     </div>
   </div>
 

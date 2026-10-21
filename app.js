@@ -52,7 +52,7 @@ function go(id) {
 let blackout = 1;
 function setTheme() {
   const inRoom = scene === 'cake' || scene === 'gifts';
-  const color = inRoom ? '#' + new THREE.Color(BG.theme).lerp(new THREE.Color(0), blackout).getHexString() : '#ffdcea';
+  const color = inRoom ? '#' + new THREE.Color(BG.theme).lerp(new THREE.Color(0), blackout).getHexString() : '#ece4ff';
   document.querySelector('meta[name="theme-color"]').content = color;
 }
 function swapText(el, text) {
@@ -61,7 +61,7 @@ function swapText(el, text) {
 }
 
 // ------------------------------------------------------------------ confetti
-const COLORS = ['#ff8fb8', '#ffd6e7', '#e9d8ff', '#f2c46d', '#ffffff', '#a8e6cf'];
+const COLORS = ['#b79df0', '#d9c8ff', '#8c66dc', '#f7a8cf', '#f2c46d', '#ffffff'];   // lavender first: her favourite colour
 const fire = (opts) => window.confetti?.({ colors: COLORS, disableForReducedMotion: true, ...opts });
 const heartShape = window.confetti?.shapeFromPath?.({
   path: 'M167 72c19,-38 37,-56 75,-56 42,0 76,33 76,75 0,76 -76,151 -151,227 -76,-76 -151,-151 -151,-227 0,-42 33,-75 75,-75 38,0 57,18 76,56z',
@@ -71,7 +71,7 @@ const heartShape = window.confetti?.shapeFromPath?.({
 const sky = (() => {
   const cv = $('#sky');
   const ctx = cv.getContext('2d');
-  const tints = ['#ff9ec4', '#ffc2d8', '#e3c9ff', '#ffd59e', '#ffffff', '#ffffff'];
+  const tints = ['#b99cf7', '#d2bfff', '#a98bff', '#f7b3d6', '#ffffff', '#ffffff'];
   let W = 0, H = 0;
   const parts = [];
   const make = (anywhere) => ({
@@ -296,18 +296,18 @@ canvas.addEventListener('webglcontextrestored', () => {
 });
 
 // The room's backdrop. Neither has a visible floor: the party stands on the page and only its shadows show.
-// dark (default): a deep berry room lit by the candles, fairy lights and a spotlight on the cake, for contrast.
-// pastel (?bg=pastel): the light pink page itself, sunlit, with soft pink shadows.
+// dark (default): a deep violet room lit by the candles, fairy lights and a spotlight on the cake, for contrast.
+// pastel (?bg=pastel): the light lavender page itself, sunlit, with soft violet shadows.
 // Both start black; the balloon pops reveal them.
 // exposure and cakeEnv keep the white icing from burning out: the dark room's spotlit cake needs less of both.
 const BACKDROPS = {
   dark: {
-    fog: 0x2c0f28, shadow: [0x000000, 0.35], blob: [0x12060f, 0.4], moon: [0xd9ccff, 0x3a2038, 0.7], envMax: 0.25,
-    blackout: [0.7, 0.35], spot: 16, party: 1.1, decorEnv: 0.5, exposure: 0.75, cakeEnv: 0.45, theme: '#250d22',
+    fog: 0x1e1540, shadow: [0x000000, 0.35], blob: [0x0b0719, 0.4], moon: [0xd9ccff, 0x2b2050, 0.7], envMax: 0.25,
+    blackout: [0.7, 0.35], spot: 16, party: 1.1, decorEnv: 0.5, exposure: 0.75, cakeEnv: 0.45, theme: '#170f2e',
   },
   pastel: {
-    fog: null, shadow: [0xa8436f, 0.16], blob: [0x9b3d66, 0.22], moon: [0xfff2f6, 0xffc9dc, 0.7], envMax: 0.75,
-    blackout: [0.85, 0.6], spot: 0, sun: 2.0, rim: 0.9, exposure: 1, cakeEnv: 0.8, theme: '#ffdcea',
+    fog: null, shadow: [0x6c4fa8, 0.16], blob: [0x664a9b, 0.22], moon: [0xf7f2ff, 0xd8c8ff, 0.7], envMax: 0.75,
+    blackout: [0.85, 0.6], spot: 0, sun: 2.0, rim: 0.9, exposure: 1, cakeEnv: 0.8, theme: '#ece4ff',
   },
 };
 const BG_NAME = params.get('bg') in BACKDROPS ? params.get('bg') : 'dark';
@@ -342,8 +342,8 @@ if (BG.party) {   // a soft white light over the whole party, so the decorations
 }
 if (BG.spot) {   // the rest of the cake's studio lights from the Blender scene, in narrow cones that only reach the cake:
   // a cool fill from the front right and pink rims from behind on either side
-  for (const [name, color, max, pos] of [['fill', 0xeef2ff, 4, [1.8, 1.4, 2.3]], ['rimL', 0xffe6f0, 6, [-1.7, 1.6, -1.9]],
-    ['rimR', 0xffe6f0, 6, [1.7, 1.6, -1.9]]]) {
+  for (const [name, color, max, pos] of [['fill', 0xeef2ff, 4, [1.8, 1.4, 2.3]], ['rimL', 0xebe2ff, 6, [-1.7, 1.6, -1.9]],
+    ['rimR', 0xebe2ff, 6, [1.7, 1.6, -1.9]]]) {
     const s = lamp(name, new THREE.SpotLight(color, 0, 0, 0.34, 0.8, 2), max);
     s.position.set(...pos);
     s.target = spot.target;
@@ -357,7 +357,7 @@ if (BG.sun) {   // the pastel room: a soft sun with shadows, and a pink back lig
   Object.assign(sun.shadow.camera, { left: -2.4, right: 2.4, top: 2.4, bottom: -2.4, near: 0.5, far: 9 });
   sun.shadow.bias = -0.0004;
   sun.shadow.normalBias = 0.015;
-  lamp('rim', new THREE.DirectionalLight(0xffd0e6, 0), BG.rim).position.set(-1.5, 2.5, -3);
+  lamp('rim', new THREE.DirectionalLight(0xdcd0ff, 0), BG.rim).position.set(-1.5, 2.5, -3);
 }
 lamp('fairy', new THREE.PointLight(0xffc27a, 0, 0, 2), 0.45, 0.08).position.set(0, 1.5, -0.9);
 lamp('left', new THREE.PointLight(0xffa457, 0, 0, 2), 0.32, 0.18).position.set(-0.55, 0.32, 0.72);
@@ -640,7 +640,7 @@ const puffs = [];
 function puff(f) {
   const p = f.getWorldPosition(new THREE.Vector3()).add(new THREE.Vector3(0, 0.015, 0));
   for (let i = 0; i < 7; i++) {
-    const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: softTex, color: 0xb9a6b0, transparent: true, opacity: 0, depthWrite: false }));
+    const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: softTex, color: 0xaea8c2, transparent: true, opacity: 0, depthWrite: false }));
     s.position.copy(p);
     world.add(s);
     puffs.push({ s, t: -i * 0.11, life: 2.2, vx: rand(-0.025, 0.025), vz: rand(-0.025, 0.025) });
@@ -692,21 +692,21 @@ const votiveGlass = new Set();
 let decorGltf, falling, sparkles, fairy, rice;
 const UP = new THREE.Vector3(0, 1, 0);
 const WARM = new THREE.Color(1, 0.8, 0.5), BULB_OFF = new THREE.Color(0.012, 0.009, 0.009);
-const CONFETTI = ['#ff6fa8', '#ff9cc3', '#a98bff', '#f6c34e', '#5fd9ac', '#62bcff', '#ffffff'];
+const CONFETTI = ['#a98bff', '#c9b3ff', '#8c66dc', '#ff9cc8', '#f6c34e', '#7fa8ff', '#ffffff'];
 const latex = (color) => ({ Balloon_Latex: { color, roughness: 0.3, clearcoat: 1, clearcoatRoughness: 0.1, sheen: 0.5, sheenColor: 0xffffff } });
 const foil = (color) => ({ Heart_Foil: { color, metalness: 0.65, roughness: 0.2, clearcoat: 1, clearcoatRoughness: 0.1 } });
-const jelly = (color) => ({ Jelly: { color, roughness: 0.08, clearcoat: 1, clearcoatRoughness: 0.04, sheen: 0.3, sheenColor: 0xffd6e6 } });
+const jelly = (color) => ({ Jelly: { color, roughness: 0.08, clearcoat: 1, clearcoatRoughness: 0.04, sheen: 0.3, sheenColor: 0xeee4ff } });
 
 // dreamy gift boxes: a soft vertical gradient painted per box (bottom, middle, top), satin ribbon, glowing sparkle stars,
 // and a pale inside that shows when the lid comes off
 const GIFT_TOP = 0.88;  // the lid's top in the model (web_decor.py): the gradient runs from the floor up to it
 const starLooks = [];   // the stars glow up with the room, so the dark room stays dark
 const DREAMS = [
-  { stops: ['#e08cf0', '#9b86ff', '#7fbaff'], ribbon: '#d79cff' },
-  { stops: ['#ff6fa8', '#ff9cc6', '#ffd0e4'], ribbon: '#ffffff' },
-  { stops: ['#74c2ff', '#86e3c3', '#d2fbe9'], ribbon: '#ff8fc3' },
-  { stops: ['#ffa066', '#ffc396', '#ffe6cc'], ribbon: '#ff7fb2' },
-  { stops: ['#a585ff', '#c4adff', '#ebe0ff'], ribbon: '#f6cf6e' },
+  { stops: ['#ff70b6', '#ff99cb', '#ffc4e1'], ribbon: '#a98bff' },
+  { stops: ['#6c88ff', '#93a6ff', '#c6d0ff'], ribbon: '#ffffff' },
+  { stops: ['#9163ff', '#b18cff', '#d6c4ff'], ribbon: '#ff9cc8' },   // lavender, front and centre
+  { stops: ['#8a5cff', '#ab86ff', '#d1beff'], ribbon: '#f6cf6e' },
+  { stops: ['#cf78f0', '#b28cff', '#d8c8ff'], ribbon: '#ffffff' },
 ];
 function dreamGift({ stops, ribbon }) {
   const g = make('DreamGift');
@@ -857,7 +857,7 @@ function bunting() {
   flag.setAttribute('position', new THREE.Float32BufferAttribute([-0.07, 0, 0, 0.07, 0, 0, 0, -0.16, 0], 3));
   flag.setAttribute('uv', new THREE.Float32BufferAttribute([0, 1, 1, 1, 0.5, 0], 2));
   flag.computeVertexNormals();
-  const mats = ['#ff8fbf', '#b59bff', '#7fdcb8', '#ffb37f', '#ffe27a'].map((c) =>
+  const mats = ['#b59bff', '#ff9cc8', '#d6c4ff', '#8fb0ff', '#ffe27a'].map((c) =>
     new THREE.MeshStandardMaterial({ map: pennantTexture(c), side: THREE.DoubleSide, roughness: 0.85 }));
   const N = 34;
   for (let i = 0; i < N; i++) {
@@ -957,7 +957,7 @@ function resetFloater(f, anywhere) {
 }
 
 function setupFloaters() {
-  const hearts = ['#ff6fa3', '#ff94bf', '#b98cff', '#ff4f8b'];
+  const hearts = ['#b98cff', '#d4b8ff', '#ff94c6', '#9a6cff'];
   for (let i = 0; i < 12; i++) {
     const star = i % 3 === 2;
     const obj = star ? make('Star', {}, false) : make('JellyHeart', jelly(hearts[i % hearts.length]), false);
@@ -987,28 +987,28 @@ function setupDecor() {
   place(dreamGift(DREAMS[1]), [1.75, 0, -0.35], 0.2, 0.34);
   place(dreamGift(DREAMS[0]), [1.98, 0, 0.05], -0.6, 0.22);
 
-  balloon('Balloon', latex('#ff6fa8'), [-0.8, 0.34, -0.52], [-0.9, 1.22, -0.64], 0.85);
-  balloon('Balloon', latex('#a07cff'), [-0.8, 0.34, -0.52], [-0.6, 1.08, -0.78], 0.75);
+  balloon('Balloon', latex('#a77bff'), [-0.8, 0.34, -0.52], [-0.9, 1.22, -0.64], 0.85);
+  balloon('Balloon', latex('#ff8cc6'), [-0.8, 0.34, -0.52], [-0.6, 1.08, -0.78], 0.75);
   balloon('Heart', foil('#f2c46d'), [-0.8, 0.34, -0.52], [-1.0, 0.95, -0.42], 0.8);
-  balloon('Balloon', latex('#4fd6a4'), [0.84, 0.31, -0.46], [0.92, 1.2, -0.6], 0.85);
-  balloon('Balloon', latex('#ffa45c'), [0.84, 0.31, -0.46], [0.64, 1.05, -0.74], 0.72);
-  balloon('Heart', foil('#ff7fb0'), [0.84, 0.31, -0.46], [1.02, 0.93, -0.36], 0.8);
+  balloon('Balloon', latex('#c39bff'), [0.84, 0.31, -0.46], [0.92, 1.2, -0.6], 0.85);
+  balloon('Balloon', latex('#7aa2ff'), [0.84, 0.31, -0.46], [0.64, 1.05, -0.74], 0.72);
+  balloon('Heart', foil('#c7a3ff'), [0.84, 0.31, -0.46], [1.02, 0.93, -0.36], 0.8);
   // wider screens see a little more of the party
-  balloon('Balloon', latex('#5eb8ff'), [1.75, 0.38, -0.35], [1.7, 1.45, -0.55], 0.9);
-  balloon('Balloon', latex('#ffd84a'), [1.75, 0.38, -0.35], [1.98, 1.3, -0.45], 0.8);
-  balloon('Balloon', latex('#ff6fa8'), [-1.8, 0.0, -0.6], [-1.75, 1.5, -0.7], 0.9);
-  balloon('Heart', foil('#a68aff'), [-1.8, 0.0, -0.6], [-2.05, 1.25, -0.5], 0.85);
-  balloon('Balloon', latex('#4fd6a4'), [-1.8, 0.0, -0.6], [-1.55, 1.3, -0.85], 0.75);
+  balloon('Balloon', latex('#8a66ff'), [1.75, 0.38, -0.35], [1.7, 1.45, -0.55], 0.9);
+  balloon('Balloon', latex('#e3d4ff'), [1.75, 0.38, -0.35], [1.98, 1.3, -0.45], 0.8);
+  balloon('Balloon', latex('#a77bff'), [-1.8, 0.0, -0.6], [-1.75, 1.5, -0.7], 0.9);
+  balloon('Heart', foil('#ff9ccc'), [-1.8, 0.0, -0.6], [-2.05, 1.25, -0.5], 0.85);
+  balloon('Balloon', latex('#c39bff'), [-1.8, 0.0, -0.6], [-1.55, 1.3, -0.85], 0.75);
 
-  place(make('Cupcake', { Cupcake_Frosting: { color: '#ff8fc0', roughness: 0.5, sheen: 0.6, sheenColor: 0xffffff } }), [-0.64, 0, 0.86], 0.4);
-  place(make('Cupcake', { Cupcake_Frosting: { color: '#7fe0b8', roughness: 0.5, sheen: 0.6, sheenColor: 0xffffff } }), [-1.55, 0, 0.55], 2.1, 0.9);
+  place(make('Cupcake', { Cupcake_Frosting: { color: '#c6a4ff', roughness: 0.5, sheen: 0.6, sheenColor: 0xffffff } }), [-0.64, 0, 0.86], 0.4);
+  place(make('Cupcake', { Cupcake_Frosting: { color: '#ff9cc8', roughness: 0.5, sheen: 0.6, sheenColor: 0xffffff } }), [-1.55, 0, 0.55], 2.1, 0.9);
   // sweets: a cookie jar and a clay flower pot beside the stand, a marshmallow jar in front
   const jar = { Jar_Glass: { color: '#ffffff', transparent: true, opacity: 0.22, roughness: 0.04, clearcoat: 1, depthWrite: false } };
   for (const [name, pos, rot] of [['CookieJar', [-0.8, 0, 0.36], 0.3], ['MarshmallowJar', [0.66, 0, 0.88], -0.5]]) {
     place(make(name, jar), pos, rot).traverse((o) => { if (o.isMesh && o.material.name === 'Jar_Glass') o.castShadow = false; });
   }
   place(saturate(make('FlowerPot'), 1.7), [0.8, 0, 0.32], -0.4, 1.05);
-  const shells = ['#ff8fbd', '#7fdcb6', '#b79cff', '#ffe066'];
+  const shells = ['#c4a3ff', '#ff9cc8', '#a6d8ff', '#ffe066'];
   shells.slice(0, 3).forEach((c, i) => {
     place(make('Macaron', { Macaron_Shell: { color: c, roughness: 0.6, sheen: 0.7, sheenColor: 0xffffff } }),
       [1.36 + rand(-0.008, 0.008), i * 0.112, 0.84 + rand(-0.008, 0.008)], rand(0, 6));
@@ -1019,7 +1019,7 @@ function setupDecor() {
   hat.rotation.set(0.1, 0.9, 1.45);
   place(make('PartyHat'), [1.72, 0, 0.45], 0, 1.1);
   // glossy jelly hearts resting by the floor lights
-  for (const [x, z, c, s, ry] of [[0.06, 1.3, '#ff2e63', 0.3, 0.3], [-0.14, 1.4, '#ff7aa2', 0.22, -0.5], [0.3, 1.42, '#ffa3c0', 0.2, 0.9]]) {
+  for (const [x, z, c, s, ry] of [[0.06, 1.3, '#9a6cff', 0.3, 0.3], [-0.14, 1.4, '#c6a6ff', 0.22, -0.5], [0.3, 1.42, '#ff94c6', 0.2, 0.9]]) {
     const h = place(make('JellyHeart', jelly(c)), [x, 0.12 * s, z], 0, s);
     h.rotation.set(-1.45, 0, ry);
   }
@@ -1028,14 +1028,14 @@ function setupDecor() {
   const CREAM = '#fff1de', BLUSH = '#ffd3dc', LILAC = '#e6d8ff';
   roomCandle('Candle_L', [-0.36, 1.0], CREAM, 'left');
   roomCandle('Candle_S', [-0.22, 1.13], BLUSH, 'left');
-  roomCandle('Votive', [-0.47, 1.16], '#ff9fc0', 'left');
+  roomCandle('Votive', [-0.47, 1.16], '#c9a8ff', 'left');
   roomCandle('Candle_M', [-0.6, 0.6], BLUSH, 'left');
   roomCandle('Candle_Puddle', [-0.96, 0.78], CREAM, 'left');
   roomCandle('Candle_M', [0.35, 1.02], LILAC, 'right');
   roomCandle('Votive', [0.21, 1.15], '#ffbe7a', 'right');
   roomCandle('Candle_S', [0.47, 1.16], CREAM, 'right');
   roomCandle('Candle_L', [0.57, 0.58], CREAM, 'right');
-  roomCandle('Votive', [0.98, 0.68], '#ff9fc0', 'right');
+  roomCandle('Votive', [0.98, 0.68], '#ffa6cf', 'right');
   roomCandle('Candle_Puddle', [-0.04, 1.12], BLUSH, 'right');
   roomCandle('Candle_L', [-0.5, -0.95], CREAM, 'back');
   roomCandle('Candle_M', [0.52, -1.0], BLUSH, 'back');
@@ -1125,7 +1125,7 @@ function animateDecor(t, dt) {
 // ------------------------------------------------------------------ the dark room: pop the balloons to turn on the lights
 const popBalloons = [], bits = [];
 let litStage = 0;
-const POP_COLORS = ['#ff9ec4', '#c9b3ff', '#9fe3c9'];
+const POP_COLORS = ['#c9b3ff', '#ffaed6', '#aebfff'];
 
 function setupPopBalloons() {
   const stringGeo = new THREE.TubeGeometry(new THREE.CatmullRomCurve3([
@@ -1408,7 +1408,7 @@ async function openGift(it) {
   if (left) {
     swapText($('#giftHint'), left === 1 ? 'one more… 🎀' : `${left} more to go ✨`);
   } else {
-    swapText($('#giftHint'), 'all opened 💗 (tap one to read it again)');
+    swapText($('#giftHint'), 'all opened 💜 (tap one to read it again)');
     $('#toPhotos').classList.remove('hidden');
   }
 }
@@ -1443,7 +1443,7 @@ function guard() {
 addEventListener('popstate', () => {
   guarded = false;   // her next tap puts the guard back
   if (closeCard) closeCard();
-  else toast('go back once more to leave 💗');
+  else toast('go back once more to leave 💜');
 });
 addEventListener('pointerdown', () => {
   if (scene !== 'loading' && scene !== 'intro') guard();
@@ -1536,7 +1536,7 @@ function buildStack() {
     setTimeout(() => {
       c.remove();
       if (stack.children.length) return;
-      swapText($('#photoHint'), 'more memories coming soon, I hope 💗');
+      swapText($('#photoHint'), 'more memories coming soon, I hope 💜');
       $('#toLetter').classList.remove('hidden');
     }, 650);
   }
@@ -1580,8 +1580,8 @@ function ending() {
   const until = performance.now() + 2600;
   const shapes = heartShape ? [heartShape] : ['circle'];
   (function hearts() {
-    fire({ particleCount: 3, angle: 60, spread: 55, origin: { x: 0, y: 0.75 }, shapes, scalar: 1.7, colors: ['#ff8fb8', '#ffb3cf', '#f06a9b'] });
-    fire({ particleCount: 3, angle: 120, spread: 55, origin: { x: 1, y: 0.75 }, shapes, scalar: 1.7, colors: ['#ff8fb8', '#ffb3cf', '#f06a9b'] });
+    fire({ particleCount: 3, angle: 60, spread: 55, origin: { x: 0, y: 0.75 }, shapes, scalar: 1.7, colors: ['#b79df0', '#d6c4ff', '#f4a6cc'] });
+    fire({ particleCount: 3, angle: 120, spread: 55, origin: { x: 1, y: 0.75 }, shapes, scalar: 1.7, colors: ['#b79df0', '#d6c4ff', '#f4a6cc'] });
     if (performance.now() < until) requestAnimationFrame(hearts);
   })();
 }
@@ -1665,7 +1665,7 @@ try {
   await sleep(500);
 } catch (err) {
   console.error(err);
-  $('#loading .hint').textContent = 'hmm, something went wrong. try opening the link in your browser 💗';
+  $('#loading .hint').textContent = 'hmm, something went wrong. try opening the link in your browser 💜';
   throw err;
 }
 

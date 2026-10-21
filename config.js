@@ -17,7 +17,7 @@ export const CONFIG = {
 
   cakeTitle: "Happy Birthday, {name}!",
   wishPrompt: "close your eyes, make a wish… then tap the cake to blow out the candles ✨",
-  afterWish: "I hope every single wish comes true 💖",
+  afterWish: "I hope every single wish comes true 💜",
 
   giftsTitle: "I got you a few little things",
   gifts: [
@@ -56,7 +56,7 @@ export const CONFIG = {
   ],
   signoff: "— with lots of warmth, {from}",
 
-  endingTitle: "Happy Birthday, {name} 🌸",
+  endingTitle: "Happy Birthday, {name} 💜",
   endingPrompt: "If you feel like it… tell me what you wished for? ✨",
   replyButton: "send my wish 💌",
   replyText: "Okay okay, my birthday wish was… 🎂✨ ",
