@@ -375,6 +375,7 @@ function updateLamps(t) {
   world.fog?.color.setRGB(0, 0, 0).lerp(fogLit, lit);   // fog glows even unlit, so it rises with the room
   for (const m of blobLooks) m.opacity = BG.blob[1] * lit;
   for (const m of starLooks) m.emissiveIntensity = 0.8 * lit;
+  for (const m of latexLooks) m.emissiveIntensity = 0.18 * lit;
   floor.material.opacity = BG.shadow[1] * lit;   // shadow maps are drawn even with the lights off
 }
 
@@ -693,7 +694,8 @@ let decorGltf, falling, sparkles, fairy, rice;
 const UP = new THREE.Vector3(0, 1, 0);
 const WARM = new THREE.Color(1, 0.8, 0.5), BULB_OFF = new THREE.Color(0.012, 0.009, 0.009);
 const CONFETTI = ['#a98bff', '#c9b3ff', '#8c66dc', '#ff9cc8', '#f6c34e', '#7fa8ff', '#ffffff'];
-const latex = (color) => ({ Balloon_Latex: { color, roughness: 0.3, clearcoat: 1, clearcoatRoughness: 0.1, sheen: 0.5, sheenColor: 0xffffff } });
+// a faint glow of their own colour (rising with the room lights) keeps the warm and light balloons from going muddy
+const latex = (color) => ({ Balloon_Latex: { color, roughness: 0.3, clearcoat: 1, clearcoatRoughness: 0.1, sheen: 0.5, sheenColor: 0xffffff, emissive: color, emissiveIntensity: 0 } });
 const foil = (color) => ({ Heart_Foil: { color, metalness: 0.65, roughness: 0.2, clearcoat: 1, clearcoatRoughness: 0.1 } });
 const jelly = (color) => ({ Jelly: { color, roughness: 0.08, clearcoat: 1, clearcoatRoughness: 0.04, sheen: 0.3, sheenColor: 0xeee4ff } });
 
@@ -701,6 +703,7 @@ const jelly = (color) => ({ Jelly: { color, roughness: 0.08, clearcoat: 1, clear
 // and a pale inside that shows when the lid comes off
 const GIFT_TOP = 0.88;  // the lid's top in the model (web_decor.py): the gradient runs from the floor up to it
 const starLooks = [];   // the stars glow up with the room, so the dark room stays dark
+const latexLooks = new Set();   // so do the room's balloons
 const DREAMS = [
   { stops: ['#ff70b6', '#ff99cb', '#ffc4e1'], ribbon: '#a98bff' },
   { stops: ['#6c88ff', '#93a6ff', '#c6d0ff'], ribbon: '#ffffff' },
@@ -836,6 +839,7 @@ function balloon(kind, look, anchor, knot, scale) {
   lean.position.copy(rel);
   lean.quaternion.setFromUnitVectors(UP, rel.clone().sub(curve.getPoint(0.9)).normalize());
   const body = make(kind, look, false);
+  body.traverse((o) => { if (o.material?.name === 'Balloon_Latex') latexLooks.add(o.material); });
   body.scale.setScalar(scale);
   lean.add(body);
   holder.add(new THREE.Mesh(new THREE.TubeGeometry(curve, 48, 0.0026, 5), stringMat), lean);
@@ -987,18 +991,19 @@ function setupDecor() {
   place(dreamGift(DREAMS[1]), [1.75, 0, -0.35], 0.2, 0.34);
   place(dreamGift(DREAMS[0]), [1.98, 0, 0.05], -0.6, 0.22);
 
-  balloon('Balloon', latex('#a77bff'), [-0.8, 0.34, -0.52], [-0.9, 1.22, -0.64], 0.85);
-  balloon('Balloon', latex('#ff8cc6'), [-0.8, 0.34, -0.52], [-0.6, 1.08, -0.78], 0.75);
+  // a mix of happy colours, with lavender kept in the bunch
+  balloon('Balloon', latex('#ff917c'), [-0.8, 0.34, -0.52], [-0.9, 1.22, -0.64], 0.85);   // coral
+  balloon('Balloon', latex('#6fd8c6'), [-0.8, 0.34, -0.52], [-0.6, 1.08, -0.78], 0.75);   // mint
   balloon('Heart', foil('#f2c46d'), [-0.8, 0.34, -0.52], [-1.0, 0.95, -0.42], 0.8);
-  balloon('Balloon', latex('#c39bff'), [0.84, 0.31, -0.46], [0.92, 1.2, -0.6], 0.85);
-  balloon('Balloon', latex('#7aa2ff'), [0.84, 0.31, -0.46], [0.64, 1.05, -0.74], 0.72);
+  balloon('Balloon', latex('#ff7eb6'), [0.84, 0.31, -0.46], [0.92, 1.2, -0.6], 0.85);     // rose pink
+  balloon('Balloon', latex('#6fb4ff'), [0.84, 0.31, -0.46], [0.64, 1.05, -0.74], 0.72);   // sky blue
   balloon('Heart', foil('#c7a3ff'), [0.84, 0.31, -0.46], [1.02, 0.93, -0.36], 0.8);
   // wider screens see a little more of the party
-  balloon('Balloon', latex('#8a66ff'), [1.75, 0.38, -0.35], [1.7, 1.45, -0.55], 0.9);
-  balloon('Balloon', latex('#e3d4ff'), [1.75, 0.38, -0.35], [1.98, 1.3, -0.45], 0.8);
-  balloon('Balloon', latex('#a77bff'), [-1.8, 0.0, -0.6], [-1.75, 1.5, -0.7], 0.9);
+  balloon('Balloon', latex('#8a66ff'), [1.75, 0.38, -0.35], [1.7, 1.45, -0.55], 0.9);     // violet
+  balloon('Balloon', latex('#ffb98f'), [1.75, 0.38, -0.35], [1.98, 1.3, -0.45], 0.8);     // peach
+  balloon('Balloon', latex('#ffd84a'), [-1.8, 0.0, -0.6], [-1.75, 1.5, -0.7], 0.9);       // buttercup
   balloon('Heart', foil('#ff9ccc'), [-1.8, 0.0, -0.6], [-2.05, 1.25, -0.5], 0.85);
-  balloon('Balloon', latex('#c39bff'), [-1.8, 0.0, -0.6], [-1.55, 1.3, -0.85], 0.75);
+  balloon('Balloon', latex('#b99cff'), [-1.8, 0.0, -0.6], [-1.55, 1.3, -0.85], 0.75);     // lavender
 
   place(make('Cupcake', { Cupcake_Frosting: { color: '#c6a4ff', roughness: 0.5, sheen: 0.6, sheenColor: 0xffffff } }), [-0.64, 0, 0.86], 0.4);
   place(make('Cupcake', { Cupcake_Frosting: { color: '#ff9cc8', roughness: 0.5, sheen: 0.6, sheenColor: 0xffffff } }), [-1.55, 0, 0.55], 2.1, 0.9);
