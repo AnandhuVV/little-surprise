@@ -86,6 +86,35 @@ body[data-scene="gifts"] .top::before { background: radial-gradient(closest-side
 body[data-scene="cake"] .mute,
 body[data-scene="gifts"] .mute { background: rgba(255, 255, 255, 0.14); }
 
+/* ?bg=dream: a blue-to-pink studio haze with soft balloons in the mist (the page adds drifting smoke) */
+body[data-bg="dream"] #night {
+  background:
+    radial-gradient(55% 30% at 50% 50%, rgba(255, 240, 252, 0.7), transparent 75%),
+    radial-gradient(150% 26% at 50% 54%, rgba(246, 216, 246, 0.9), transparent 78%),
+    radial-gradient(130% 50% at 50% 100%, rgba(232, 196, 238, 0.95), transparent 72%),
+    radial-gradient(circle at 8% 50%, rgba(255, 196, 230, 0.6), transparent 11%),
+    radial-gradient(circle at 19% 56%, rgba(255, 214, 238, 0.5), transparent 8%),
+    radial-gradient(circle at 92% 47%, rgba(255, 170, 218, 0.55), transparent 12%),
+    radial-gradient(circle at 81% 55%, rgba(255, 206, 236, 0.5), transparent 8%),
+    linear-gradient(105deg, #6fc6fb 0%, #9db6ff 27%, #d6a3f3 56%, #ff7fcc 84%, #ff69c0 100%);
+}
+/* ?bg=roses: an out-of-focus rose garden in soft sunlight (make_backgrounds.py paints it) */
+body[data-bg="roses"] #night { background: url("assets/bg-roses.jpg") center top / cover no-repeat, #f4d2de; }
+
+body[data-bg="dream"][data-scene="cake"] .title,
+body[data-bg="dream"][data-scene="gifts"] .title { color: #fff; text-shadow: 0 0 18px rgba(255, 90, 190, 0.6), 0 2px 0 rgba(90, 30, 110, 0.45); }
+body[data-bg="dream"][data-scene="cake"] .hint,
+body[data-bg="dream"][data-scene="gifts"] .hint { color: #fff; text-shadow: 0 1px 8px rgba(90, 30, 110, 0.55); }
+body[data-bg="dream"][data-scene="cake"] .top::before,
+body[data-bg="dream"][data-scene="gifts"] .top::before { background: radial-gradient(closest-side, rgba(110, 50, 150, 0.3), rgba(110, 50, 150, 0.12) 55%, transparent); }
+
+body[data-bg="roses"][data-scene="cake"] .title,
+body[data-bg="roses"][data-scene="gifts"] .title { color: #e3a23a; text-shadow: 0 1px 0 #fff4dc, 0 2px 1px rgba(130, 64, 28, 0.6), 0 0 18px rgba(255, 255, 255, 0.9); }
+body[data-bg="roses"][data-scene="cake"] .hint,
+body[data-bg="roses"][data-scene="gifts"] .hint { color: #8c3c5e; text-shadow: 0 0 10px rgba(255, 255, 255, 0.85); }
+body[data-bg="roses"][data-scene="cake"] .top::before,
+body[data-bg="roses"][data-scene="gifts"] .top::before { background: radial-gradient(closest-side, rgba(255, 246, 249, 0.75), rgba(255, 246, 249, 0.4) 55%, transparent); }
+
 .dark-hint {
   position: absolute;
   left: 20px;

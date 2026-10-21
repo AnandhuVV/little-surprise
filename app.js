@@ -261,7 +261,25 @@ const world = new THREE.Scene();
 const pmrem = new THREE.PMREMGenerator(renderer);
 world.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
 world.environmentIntensity = 0;
-world.fog = new THREE.Fog(0x22122a, 7.5, 15);
+
+// The room's backdrop, chosen with ?bg=: the dark plum room (default), "dream" (a blue-to-pink haze with drifting pink
+// smoke) or "roses" (an out-of-focus rose garden over a pale table strewn with petals). The two bright ones still start
+// black; the lights reveal them.
+const BACKDROPS = {
+  night: { fog: 0x22122a, floor: 0x6a3d5f, moon: [0xa58bd6, 0x2b1730, 0.55], envMax: 0.22, blackout: [0.7, 0.35] },
+  dream: {
+    fog: 0xe2bdf0, floor: 0xdcb2e4, moon: [0xcfe6ff, 0xffc4ea, 0.8], envMax: 0.45, blackout: [0.82, 0.55],
+    rims: [0x7fd4ff, 0xff7fd0], smoke: ['#fff4fb', '#ffe0f4', '#f3e4ff', '#ffd4ee'], frontSmoke: true,
+  },
+  roses: {
+    fog: 0xf2cad8, floor: 0xeccbd7, moon: [0xfff2f5, 0xf6d2de, 0.8], envMax: 0.45, blackout: [0.82, 0.55],
+    rims: [0xffeedd, 0xffb6cf], smoke: ['#fff6f9', '#ffe4ee', '#fff0f5'], petals: true,
+  },
+};
+const BG_NAME = params.get('bg') in BACKDROPS ? params.get('bg') : 'night';
+const BG = BACKDROPS[BG_NAME];
+document.body.dataset.bg = BG_NAME;
+world.fog = new THREE.Fog(BG.fog, 7.5, 15);
 
 const camera = new THREE.PerspectiveCamera(30, 1, 0.05, 40);
 
@@ -273,8 +291,12 @@ function lamp(name, light, max, flicker = 0) {
   lamps[name] = { light, max, level: 0, flicker, seed: rand(0, 50) };
   return light;
 }
-const room = { env: 0, envMax: 0.22 };
-lamp('moon', new THREE.HemisphereLight(0xa58bd6, 0x2b1730), 0.55);
+const room = { env: 0, envMax: BG.envMax };
+lamp('moon', new THREE.HemisphereLight(BG.moon[0], BG.moon[1]), BG.moon[2]);
+if (BG.rims) {   // coloured light from behind on either side, like the studio glow in the backdrop
+  lamp('rimL', new THREE.DirectionalLight(BG.rims[0], 0), 1.6).position.set(-3, 2.2, -1.6);
+  lamp('rimR', new THREE.DirectionalLight(BG.rims[1], 0), 1.6).position.set(3, 2.2, -1.6);
+}
 const spot = lamp('spot', new THREE.SpotLight(0xffe0bf, 0, 0, 0.36, 0.75, 2), 30);
 spot.position.set(0.7, 3.4, 2.0);
 spot.target.position.set(0, 0.6, 0);
@@ -289,12 +311,14 @@ lamp('left', new THREE.PointLight(0xffa457, 0, 0, 2), 0.32, 0.18).position.set(-
 lamp('right', new THREE.PointLight(0xffa457, 0, 0, 2), 0.32, 0.18).position.set(0.58, 0.32, 0.72);
 lamp('back', new THREE.PointLight(0xffa457, 0, 0, 2), 0.3, 0.18).position.set(0, 0.32, -0.95);
 
+const fogLit = new THREE.Color(BG.fog);
 function updateLamps(t) {
   for (const L of Object.values(lamps)) {
     const f = L.flicker ? 1 - L.flicker * (0.5 + 0.5 * Math.sin(t * 9.3 + L.seed) * Math.sin(t * 5.7 + L.seed * 2)) : 1;
     L.light.intensity = L.max * L.level * f;
   }
   world.environmentIntensity = room.env;
+  world.fog.color.setRGB(0, 0, 0).lerp(fogLit, room.env / room.envMax);   // fog glows even unlit, so it rises with the room
 }
 
 // switching on: a few stuttering flickers, then a smooth rise
@@ -335,9 +359,9 @@ function softTexture() {
 }
 const softTex = softTexture();
 
-// a floor that catches the pools of candlelight and fades into the dark at its edges
+// a floor that catches the pools of candlelight and fades into the backdrop at its edges
 const floor = new THREE.Mesh(new THREE.CircleGeometry(4, 72), new THREE.MeshStandardMaterial({
-  color: 0x6a3d5f, roughness: 0.9, transparent: true, depthWrite: false, alphaMap: radialTexture(0.35, 1, 256),
+  color: BG.floor, roughness: 0.9, transparent: true, depthWrite: false, alphaMap: radialTexture(0.35, 1, 256),
 }));
 floor.rotation.x = -Math.PI / 2;
 floor.receiveShadow = true;
@@ -815,11 +839,14 @@ function respawnPiece(p, anywhere) {
   return p;
 }
 
-function setupFalling() {
+function setupFalling() {   // confetti drifting down; rose petals over the rose table
   const n = 90;
-  const mesh = new THREE.InstancedMesh(new THREE.PlaneGeometry(0.03, 0.015),
-    new THREE.MeshStandardMaterial({ roughness: 0.5, side: THREE.DoubleSide }), n);
-  for (let i = 0; i < n; i++) mesh.setColorAt(i, new THREE.Color(CONFETTI[(i * 3) % CONFETTI.length]));
+  const mesh = BG.petals
+    ? new THREE.InstancedMesh(decorGltf.scene.getObjectByName('Petal_Mesh').geometry,
+      new THREE.MeshStandardMaterial({ roughness: 0.5, vertexColors: true, side: THREE.DoubleSide }), n)
+    : new THREE.InstancedMesh(new THREE.PlaneGeometry(0.03, 0.015), new THREE.MeshStandardMaterial({ roughness: 0.5, side: THREE.DoubleSide }), n);
+  const colors = BG.petals ? ROSE_PINKS : CONFETTI;
+  for (let i = 0; i < n; i++) mesh.setColorAt(i, new THREE.Color(colors[(i * 3) % colors.length]));
   mesh.frustumCulled = false;
   decor.add(mesh);
   falling = { mesh, pieces: Array.from({ length: n }, () => respawnPiece({}, true)), d: new THREE.Object3D() };
@@ -853,6 +880,100 @@ function setupSparkles() {
 function moveSparkle(i) {
   sparkles.pts.geometry.attributes.position.setXYZ(i, rand(-1.9, 1.9), rand(0.15, 2.5), rand(-1.3, 1.0));
   sparkles.pts.geometry.attributes.position.needsUpdate = true;
+}
+
+// ---- soft smoke curling around the cake (bright backdrops): sprites with a domain-warped noise wisp
+function smokeTexture(seed) {
+  const S = 160, c = document.createElement('canvas');
+  c.width = c.height = S;
+  const g = c.getContext('2d'), img = g.createImageData(S, S);
+  const hash = (x, y) => { const h = Math.sin(x * 127.1 + y * 311.7 + seed * 74.7) * 43758.5453; return h - Math.floor(h); };
+  const noise = (x, y) => {
+    const xi = Math.floor(x), yi = Math.floor(y), xf = x - xi, yf = y - yi;
+    const u = xf * xf * (3 - 2 * xf), v = yf * yf * (3 - 2 * yf);
+    const a = hash(xi, yi), b = hash(xi + 1, yi), c0 = hash(xi, yi + 1), d = hash(xi + 1, yi + 1);
+    return a + (b - a) * u + (c0 - a) * v + (a - b - c0 + d) * u * v;
+  };
+  const fbm = (x, y) => { let s = 0, a = 0.5; for (let o = 0; o < 5; o++) { s += a * noise(x, y); x *= 2.03; y *= 2.03; a *= 0.5; } return s; };
+  for (let y = 0; y < S; y++) {
+    for (let x = 0; x < S; x++) {
+      const u = x / S, v = y / S;
+      const fall = Math.max(0, 1 - Math.hypot(u * 2 - 1, (v * 2 - 1) * 1.15));
+      const w = fbm(u * 3 + 2.2 * fbm(u * 2 + seed, v * 2), v * 3 + 1.4 * fbm(u * 2, v * 2 + seed));   // curly wisps
+      const i = (y * S + x) * 4;
+      img.data[i] = img.data[i + 1] = img.data[i + 2] = 255;
+      img.data[i + 3] = 255 * Math.min(1, 1.3 * fall * THREE.MathUtils.smoothstep(w, 0.26, 0.56));
+    }
+  }
+  g.putImageData(img, 0, 0);
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace;
+  return t;
+}
+
+let smoke = null;
+function setupSmoke() {
+  const texs = [1, 2, 3].map(smokeTexture), puffs = [];
+  // [count, angle range (x pi), radius, height, width, opacity]: curling round the stand, a far bank that hides where
+  // the floor ends, and (dream only) a few faint ones drifting between the camera and the cake
+  const bands = [[18, [0, 2], [0.5, 1.4], [0.03, 0.45], [1.1, 2.0], [0.85, 1]],
+    [12, [0.9, 2.1], [2.0, 3.2], [0.1, 0.7], [1.8, 2.8], [0.7, 0.95]],
+    [BG.frontSmoke ? 6 : 0, [0.15, 0.85], [1.35, 1.9], [0.04, 0.16], [1.4, 2], [0.3, 0.45]]];
+  for (const [n, ang, r, y, w, op] of bands) {
+    for (let i = 0; i < n; i++) {
+      const s = new THREE.Sprite(new THREE.SpriteMaterial({
+        map: texs[puffs.length % 3], color: BG.smoke[puffs.length % BG.smoke.length], transparent: true, depthWrite: false, opacity: 0,
+      }));
+      s.material.rotation = rand(0, Math.PI * 2);
+      decor.add(s);
+      puffs.push({
+        s, a: rand(...ang) * Math.PI, r: rand(...r), y: rand(...y), w: rand(...w), op: rand(...op), seed: rand(0, 6),
+        drift: rand(0.02, 0.05) * (i % 2 ? 1 : -1), spin: rand(-0.06, 0.06),
+      });
+    }
+  }
+  smoke = { puffs, level: 0 };
+}
+function animateSmoke(t, dt) {
+  for (const p of smoke.puffs) {
+    p.a += p.drift * dt;
+    const breathe = 0.88 + 0.12 * Math.sin(t * 0.35 + p.seed);
+    p.s.position.set(Math.cos(p.a) * p.r, p.y + Math.sin(t * 0.4 + p.seed) * 0.03, Math.sin(p.a) * p.r * 0.85);
+    p.s.scale.set(p.w * breathe, p.w * 0.55 * breathe, 1);
+    p.s.material.rotation += p.spin * dt;
+    p.s.material.opacity = p.op * smoke.level * (0.8 + 0.2 * Math.sin(t * 0.5 + p.seed * 2));
+  }
+}
+
+// ---- the rose table (roses backdrop): loose petals and little blossoms on the floor, a few roses lying in front
+const ROSE_PINKS = ['#ff7fa8', '#ff9fbf', '#f2668f', '#ffb3c9', '#ff6f9f'];
+function roseTable() {
+  const d = new THREE.Object3D(), c = new THREE.Color();
+  for (const [name, n, size, look] of [
+    ['Petal_Mesh', 220, [1.1, 1.7], { roughness: 0.5, sheen: 0.25, sheenColor: 0xffc0d4 }],
+    ['Blossom_Mesh', 40, [1.2, 1.9], { roughness: 0.55, sheen: 0.3, sheenColor: 0xffffff }],
+  ]) {
+    const mesh = new THREE.InstancedMesh(decorGltf.scene.getObjectByName(name).geometry,
+      new THREE.MeshPhysicalMaterial({ vertexColors: true, ...look }), n);
+    for (let i = 0; i < n; i++) {
+      const r = 0.78 + Math.random() ** 0.85 * 2.1, a = rand(0, Math.PI * 2);
+      d.position.set(Math.cos(a) * r, 0.003, Math.sin(a) * r * 0.85);
+      d.rotation.set(rand(-0.25, 0.25), rand(0, Math.PI * 2), rand(-0.25, 0.25));
+      d.scale.setScalar(rand(...size));
+      d.updateMatrix();
+      mesh.setMatrixAt(i, d.matrix);
+      mesh.setColorAt(i, name === 'Petal_Mesh' ? c.set(ROSE_PINKS[i % ROSE_PINKS.length]) : c.setRGB(1, 1, 1));
+    }
+    mesh.castShadow = false;
+    mesh.receiveShadow = true;
+    decor.add(mesh);
+  }
+  for (const [x, z, s, i] of [[-0.95, 1.3, 1.8, 0], [-0.68, 1.5, 1.5, 2], [0.82, 1.38, 1.75, 1], [1.1, 1.18, 1.45, 4],
+    [0.18, 1.66, 1.6, 3], [-1.32, 0.98, 1.6, 1], [1.45, 0.62, 1.5, 2]]) {
+    const rose = place(make('Rose', { Rose: { color: ROSE_PINKS[i], roughness: 0.5, sheen: 0.25, sheenColor: 0xffc0d4 } }),
+      [x, 0.022 * s, z], rand(0, 6), s);
+    rose.rotation.x = rand(0.2, 0.4);   // tipped a little towards the camera, so it shows its face
+  }
 }
 
 function setupDecor() {
@@ -921,7 +1042,8 @@ function setupDecor() {
 
   bunting();
   floorLights();
-  floorConfetti();
+  if (BG.petals) roseTable(); else floorConfetti();
+  if (BG.smoke) setupSmoke();
   setupFalling();
   setupFloaters();
   setupSparkles();
@@ -995,6 +1117,7 @@ function animateDecor(t, dt) {
     sc.setXYZ(i, b, b * 0.94, b * 0.8);
   });
   sc.needsUpdate = true;
+  if (smoke) animateSmoke(t, dt);
 }
 
 // ------------------------------------------------------------------ the dark room: pop the balloons to turn on the lights
@@ -1097,14 +1220,15 @@ function setBlackout(v) { $('#blackout').style.opacity = v; }
 async function lightStage(n, instant = false) {
   const hint = $('#darkHint');
   if (n === 1) {             // the fairy lights
-    setBlackout(0.7);
+    setBlackout(BG.blackout[0]);
     switchOn(fairy, { ms: instant ? 1 : 900 });
     switchOn(rice, { delay: instant ? 0 : 250, ms: instant ? 1 : 1200 });
     switchOn(lamps.fairy, { ms: instant ? 1 : 900 });
     switchOn(lamps.moon, { ms: instant ? 1 : 1500, to: 0.25 });
     if (!instant) swapText(hint, fill(CONFIG.popMore2));
   } else if (n === 2) {      // the candles around the room, one after another
-    setBlackout(0.35);
+    setBlackout(BG.blackout[1]);
+    if (smoke) tween(instant ? 1 : 2500, (e) => { smoke.level = 0.35 * e; });
     roomCandles.forEach((c, i) => {
       tween(instant ? 1 : 420, (e) => { c.life = e; }, { delay: instant ? 0 : i * 110, easing: ease.outBack });
     });
@@ -1119,6 +1243,8 @@ async function lightStage(n, instant = false) {
     });
     switchOn(lamps.spot, { delay: instant ? 0 : 900, ms: instant ? 1 : 1600 });
     switchOn(lamps.moon, { ms: instant ? 1 : 2000 });
+    if (BG.rims) for (const k of ['rimL', 'rimR']) switchOn(lamps[k], { delay: instant ? 0 : 600, ms: instant ? 1 : 2000 });
+    if (smoke) tween(instant ? 1 : 3000, (e) => { smoke.level = 0.35 + 0.65 * e; });
     tween(instant ? 1 : 2000, (e) => { room.env = room.envMax * (0.4 + 0.6 * e); });
     tween(instant ? 1 : 2500, (e) => { sparkles.level = e; }, { delay: instant ? 0 : 1200 });
     music.duck(VOLUME);
@@ -1208,6 +1334,7 @@ async function toGifts() {
   turntable.visible = false;
   go('gifts');
   gifts.visible = true;
+  if (smoke) tween(1200, (e) => { smoke.level = 1 - 0.75 * e; });   // thin the mist so the gifts stay clear
   const from = { pos: camera.position.clone(), target: controls.target.clone() };
   framed = { box: giftBox, elevDeg: 22 };
   const to = framing(giftBox, 22, 0);
