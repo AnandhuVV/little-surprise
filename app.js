@@ -269,11 +269,11 @@ world.environmentIntensity = 0;
 const BACKDROPS = {
   dark: {
     fog: 0x2c0f28, shadow: [0x000000, 0.35], blob: [0x12060f, 0.4], moon: [0xa58bd6, 0x2b1730, 0.6], envMax: 0.25,
-    blackout: [0.7, 0.35], spot: 30, smoke: ['#a8789f', '#8e6a9e', '#b88aa8'],
+    blackout: [0.7, 0.35], spot: 30,
   },
   pastel: {
     fog: null, shadow: [0xa8436f, 0.16], blob: [0x9b3d66, 0.22], moon: [0xfff2f6, 0xffc9dc, 0.7], envMax: 0.75,
-    blackout: [0.85, 0.6], spot: 0, sun: 2.0, rim: 0.9, smoke: ['#fff5fa', '#ffe6f2', '#fbeaff'],
+    blackout: [0.85, 0.6], spot: 0, sun: 2.0, rim: 0.9,
   },
 };
 const BG_NAME = params.get('bg') in BACKDROPS ? params.get('bg') : 'dark';
@@ -873,67 +873,6 @@ function moveSparkle(i) {
   sparkles.pts.geometry.attributes.position.needsUpdate = true;
 }
 
-// ---- soft smoke curling around the cake (pastel room): sprites with a domain-warped noise wisp
-function smokeTexture(seed) {
-  const S = 160, c = document.createElement('canvas');
-  c.width = c.height = S;
-  const g = c.getContext('2d'), img = g.createImageData(S, S);
-  const hash = (x, y) => { const h = Math.sin(x * 127.1 + y * 311.7 + seed * 74.7) * 43758.5453; return h - Math.floor(h); };
-  const noise = (x, y) => {
-    const xi = Math.floor(x), yi = Math.floor(y), xf = x - xi, yf = y - yi;
-    const u = xf * xf * (3 - 2 * xf), v = yf * yf * (3 - 2 * yf);
-    const a = hash(xi, yi), b = hash(xi + 1, yi), c0 = hash(xi, yi + 1), d = hash(xi + 1, yi + 1);
-    return a + (b - a) * u + (c0 - a) * v + (a - b - c0 + d) * u * v;
-  };
-  const fbm = (x, y) => { let s = 0, a = 0.5; for (let o = 0; o < 5; o++) { s += a * noise(x, y); x *= 2.03; y *= 2.03; a *= 0.5; } return s; };
-  for (let y = 0; y < S; y++) {
-    for (let x = 0; x < S; x++) {
-      const u = x / S, v = y / S;
-      const fall = Math.max(0, 1 - Math.hypot(u * 2 - 1, (v * 2 - 1) * 1.15));
-      const w = fbm(u * 3 + 2.2 * fbm(u * 2 + seed, v * 2), v * 3 + 1.4 * fbm(u * 2, v * 2 + seed));   // curly wisps
-      const i = (y * S + x) * 4;
-      img.data[i] = img.data[i + 1] = img.data[i + 2] = 255;
-      img.data[i + 3] = 255 * Math.min(1, 1.3 * fall * THREE.MathUtils.smoothstep(w, 0.26, 0.56));
-    }
-  }
-  g.putImageData(img, 0, 0);
-  const t = new THREE.CanvasTexture(c);
-  t.colorSpace = THREE.SRGBColorSpace;
-  return t;
-}
-
-let smoke = null;
-function setupSmoke() {
-  const texs = [1, 2, 3].map(smokeTexture), puffs = [];
-  // [count, angle range (x pi), radius, height, width, opacity]: curling round the stand, and a soft bank further back
-  const bands = [[16, [0, 2], [0.55, 1.4], [0.02, 0.26], [1.0, 1.7], [0.45, 0.65]],
-    [12, [0.9, 2.1], [2.0, 3.2], [0.1, 0.6], [1.8, 2.8], [0.4, 0.6]]];
-  for (const [n, ang, r, y, w, op] of bands) {
-    for (let i = 0; i < n; i++) {
-      const s = new THREE.Sprite(new THREE.SpriteMaterial({
-        map: texs[puffs.length % 3], color: BG.smoke[puffs.length % BG.smoke.length], transparent: true, depthWrite: false, opacity: 0,
-      }));
-      s.material.rotation = rand(0, Math.PI * 2);
-      decor.add(s);
-      puffs.push({
-        s, a: rand(...ang) * Math.PI, r: rand(...r), y: rand(...y), w: rand(...w), op: rand(...op), seed: rand(0, 6),
-        drift: rand(0.02, 0.05) * (i % 2 ? 1 : -1), spin: rand(-0.06, 0.06),
-      });
-    }
-  }
-  smoke = { puffs, level: 0 };
-}
-function animateSmoke(t, dt) {
-  for (const p of smoke.puffs) {
-    p.a += p.drift * dt;
-    const breathe = 0.88 + 0.12 * Math.sin(t * 0.35 + p.seed);
-    p.s.position.set(Math.cos(p.a) * p.r, p.y + Math.sin(t * 0.4 + p.seed) * 0.03, Math.sin(p.a) * p.r * 0.85);
-    p.s.scale.set(p.w * breathe, p.w * 0.55 * breathe, 1);
-    p.s.material.rotation += p.spin * dt;
-    p.s.material.opacity = p.op * smoke.level * (0.8 + 0.2 * Math.sin(t * 0.5 + p.seed * 2));
-  }
-}
-
 function setupDecor() {
   // little dreamy gifts on the floor hold the balloon strings
   place(dreamGift(DREAMS[3]), [-0.8, 0, -0.52], 0.5, 0.3);
@@ -1001,7 +940,6 @@ function setupDecor() {
   bunting();
   floorLights();
   floorConfetti();
-  if (BG.smoke) setupSmoke();
   setupFalling();
   setupFloaters();
   setupSparkles();
@@ -1075,7 +1013,6 @@ function animateDecor(t, dt) {
     sc.setXYZ(i, b, b * 0.94, b * 0.8);
   });
   sc.needsUpdate = true;
-  if (smoke) animateSmoke(t, dt);
 }
 
 // ------------------------------------------------------------------ the dark room: pop the balloons to turn on the lights
@@ -1186,7 +1123,6 @@ async function lightStage(n, instant = false) {
     if (!instant) swapText(hint, fill(CONFIG.popMore2));
   } else if (n === 2) {      // the candles around the room, one after another
     setBlackout(BG.blackout[1]);
-    if (smoke) tween(instant ? 1 : 2500, (e) => { smoke.level = 0.35 * e; });
     roomCandles.forEach((c, i) => {
       tween(instant ? 1 : 420, (e) => { c.life = e; }, { delay: instant ? 0 : i * 110, easing: ease.outBack });
     });
@@ -1202,7 +1138,6 @@ async function lightStage(n, instant = false) {
     switchOn(lamps.spot, { delay: instant ? 0 : 900, ms: instant ? 1 : 1600 });
     switchOn(lamps.moon, { ms: instant ? 1 : 2000 });
     if (BG.sun) for (const k of ['sun', 'rim']) switchOn(lamps[k], { delay: instant ? 0 : 600, ms: instant ? 1 : 2000 });
-    if (smoke) tween(instant ? 1 : 3000, (e) => { smoke.level = 0.35 + 0.65 * e; });
     tween(instant ? 1 : 2000, (e) => { room.env = room.envMax * (0.4 + 0.6 * e); });
     tween(instant ? 1 : 2500, (e) => { sparkles.level = e; }, { delay: instant ? 0 : 1200 });
     music.duck(VOLUME);
@@ -1292,7 +1227,6 @@ async function toGifts() {
   turntable.visible = false;
   go('gifts');
   gifts.visible = true;
-  if (smoke) tween(1200, (e) => { smoke.level = 1 - 0.75 * e; });   // thin the mist so the gifts stay clear
   const from = { pos: camera.position.clone(), target: controls.target.clone() };
   framed = { box: giftBox, elevDeg: 22 };
   const to = framing(giftBox, 22, 0);
