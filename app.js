@@ -384,6 +384,7 @@ function updateLamps(t) {
   for (const m of blobLooks) m.opacity = BG.blob[1] * lit;
   for (const m of starLooks) m.emissiveIntensity = 0.8 * lit;
   for (const m of latexLooks) m.emissiveIntensity = 0.18 * lit;
+  for (const [m, glow] of nameLooks) m.emissiveIntensity = glow * lit;
   floor.material.opacity = BG.shadow[1] * lit;   // shadow maps are drawn even with the lights off
 }
 
@@ -750,6 +751,7 @@ const jelly = (color) => ({ Jelly: { color, roughness: 0.08, clearcoat: 1, clear
 const GIFT_TOP = 0.88;  // the lid's top in the model (web_decor.py): the gradient runs from the floor up to it
 const starLooks = [];   // the stars glow up with the room, so the dark room stays dark
 const latexLooks = new Set();   // so do the room's balloons
+const nameLooks = [];   // and her name sign: [material, glow once the room is lit]
 const DREAMS = [
   { stops: ['#ff70b6', '#ff99cb', '#ffc4e1'], ribbon: '#a98bff' },
   { stops: ['#6c88ff', '#93a6ff', '#c6d0ff'], ribbon: '#ffffff' },
@@ -1059,7 +1061,15 @@ function setupDecor() {
     place(make(name, jar), pos, rot).traverse((o) => { if (o.isMesh && o.material.name === 'Jar_Glass') o.castShadow = false; });
   }
   place(saturate(make('FlowerPot'), 1.7), [0.8, 0, 0.32], -0.4, 1.05);
-  nameSign = place(make('NameSign'), [0, 0, 0.76], 0);   // her name in gold script on a little stand, at the foot of the cake
+  nameSign = place(make('NameSign'), [0, 0, 0.76], 0);   // her name in white script on a little stand, at the foot of the cake
+  const signGlow = { Name_Letters: [0xffffff, 1.5], Name_Base: [0xb9a0ff, 0.35] };   // white letters on lavender, softly lit
+  nameSign.traverse((o) => {
+    const glow = o.isMesh && signGlow[o.material.name];
+    if (!glow) return;
+    o.material.emissive.set(glow[0]);
+    o.material.emissiveIntensity = 0;
+    nameLooks.push([o.material, glow[1]]);
+  });
   const shells = ['#c4a3ff', '#ff9cc8', '#a6d8ff', '#ffe066'];
   shells.slice(0, 3).forEach((c, i) => {
     place(make('Macaron', { Macaron_Shell: { color: c, roughness: 0.6, sheen: 0.7, sheenColor: 0xffffff } }),
@@ -1365,6 +1375,9 @@ function setupGifts() {
   giftTextures = CONFIG.gifts.slice(0, 3).map((c) => emojiTexture(c.emoji));
   giftTextures.forEach((_, i) => {
     const root = dreamGift(DREAMS[i]);   // every box gets its own materials, so fading one lid leaves the rest alone
+    const bounds = new THREE.Box3().setFromObject(root);   // before it's placed, so in the box's own units
+    const meshes = [];
+    root.traverse((o) => { if (o.isMesh) meshes.push(o); });
     const scale = [0.4, 0.38, 0.42][i];
     root.position.set(layout[i][0], 0, layout[i][1]);
     root.rotation.y = rand(-0.45, 0.45);
@@ -1373,12 +1386,14 @@ function setupGifts() {
     const lid = root.getObjectByName('DreamGift_Lid');
     // see-through from the start: shaders are compiled while loading, and an opaque one ignores opacity
     lid.traverse((o) => { if (o.isMesh) o.material.transparent = true; });
-    giftItems.push({ root, lid, content: null, scale, opened: false, seed: rand(0, 6), turn: i });
+    giftItems.push({ root, lid, meshes, bounds, content: null, scale, opened: false, seed: rand(0, 6), turn: i });
   });
   giftBox = new THREE.Box3().setFromObject(gifts);   // before the invisible helpers below are added
   giftItems.forEach((it, i) => {
-    it.hit = new THREE.Mesh(new THREE.BoxGeometry(1.3, 1.5, 1.3), new THREE.MeshBasicMaterial({ visible: false }));
-    it.hit.position.y = 0.7;
+    // a little slack around the box for near misses
+    const size = it.bounds.getSize(new THREE.Vector3()).multiplyScalar(1.15);
+    it.hit = new THREE.Mesh(new THREE.BoxGeometry(size.x, size.y, size.z), new THREE.MeshBasicMaterial({ visible: false }));
+    it.bounds.getCenter(it.hit.position);
     // each starts with a different emoji (all three get uploaded with the room); openGift swaps in the right one
     it.spark = new THREE.Sprite(new THREE.SpriteMaterial({ map: giftTextures[i], transparent: true, opacity: 0, depthWrite: false, toneMapped: false }));
     it.spark.scale.setScalar(0.001);
@@ -1431,10 +1446,18 @@ async function toGifts() {
   });
 }
 
+// the boxes overlap on screen, so a tap on a box itself wins; a near miss goes to the box whose middle is closest
+const shown = (o) => { for (; o; o = o.parent) if (!o.visible) return false; return true; };
 function pickGift(x, y) {
   raycaster.setFromCamera(ndc(x, y), camera);
-  const hit = raycaster.intersectObjects(giftItems.map((it) => it.hit), false)[0];
-  return hit && giftItems.find((it) => it.hit === hit.object);
+  const direct = raycaster.intersectObjects(giftItems.flatMap((it) => it.meshes), false).find((h) => shown(h.object));
+  if (direct) return giftItems.find((it) => it.meshes.includes(direct.object));
+  const away = (it) => {
+    const p = toScreen(it.root.localToWorld(it.hit.position.clone()));
+    return Math.hypot(p.x * innerWidth - x, p.y * innerHeight - y);
+  };
+  const near = raycaster.intersectObjects(giftItems.map((it) => it.hit), false).map((h) => giftItems.find((it) => it.hit === h.object));
+  return near.sort((a, b) => away(a) - away(b))[0];
 }
 
 async function openGift(it) {
@@ -1751,8 +1774,16 @@ $('#envelope').addEventListener('click', async () => {
   $('#mute').classList.remove('hidden');
   $('#envelope').classList.add('open');
   $('#intro').classList.add('opening');
-  $('#intro .pulse').classList.add('hidden');
-  await sleep(1900);
+  const hint = $('#intro .pulse');
+  hint.classList.add('hidden');
+  await sleep(1450);   // the letter slides out
+  hint.textContent = 'tap to continue 💜';
+  hint.classList.remove('hidden');
+  // the letter stays up for 3s, or until she taps
+  await new Promise((done) => {
+    setTimeout(done, 3000);
+    $('#intro').addEventListener('click', done, { once: true });
+  });
   startCake();
 }, { once: true });
 
@@ -1832,4 +1863,4 @@ else if (jump === 'letter') typeLetter();
 else if (jump === 'end') ending();
 else go('intro');
 
-window.surprise = { music, gifts: giftItems, light: lightCandles, wish: sendWish, toGifts, openGift: (i) => openGift(giftItems[i]), pop: (i) => pop(popBalloons[i]), go };
+window.surprise = { music, gifts: giftItems, light: lightCandles, wish: sendWish, toGifts, openGift: (i) => openGift(giftItems[i]), pickGift: (x, y) => giftItems.indexOf(pickGift(x, y)), pop: (i) => pop(popBalloons[i]), go };

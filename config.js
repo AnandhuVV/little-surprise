@@ -16,7 +16,7 @@ export const CONFIG = {
 
   cakeTitle: "Happy Birthday, {name}!",
   lightPrompt: "tap the cake to light your candles ✨",
-  wishPrompt: "now close your eyes, make a wish… then tap the cake 💜",
+  wishPrompt: "now close your eyes, make a wish… open your eyes and tap the cake 💜",
   afterWish: "may every single wish find its way to you 💜",
   afterWish2: "and may every moment, this year and always, stay lit ✨",
 
@@ -25,12 +25,12 @@ export const CONFIG = {
     {
       emoji: "🌷",
       title: "To the one I always care about",
-      text: "On the busy days and the quiet ones, I'm always rooting for you. Whatever this year brings, I hope you know there's someone in your corner.",
+      text: "Some people make ordinary days a little brighter just by being in them. You're one of those people 🌷",
     },
     {
       emoji: "✨",
       title: "Remember this",
-      text: "You take care of everyone around you, so please take care of yourself too. Eat on time, rest when you're tired, and go easy on yourself. You deserve the same kindness you give.",
+      text: "You deserve all the care and kindness you give to everyone else, and a little extra on your birthday ✨",
     },
     {
       emoji: "🛍️",
@@ -58,9 +58,8 @@ export const CONFIG = {
   letter: [
     "For {name},",
     "Happy birthday! 🎂",
-    "I wanted to do something a little different this year, so I made you this. I hope it made you smile at least once. Okay, maybe twice 😄",
+    "I wanted to do something a little different, so I made you this. I hope it made you smile at least once. Okay, maybe twice 😄",
     "Thank you for all the chats, the laughs and the random little moments. They've made so many of my days better.",
-    "I hope this year brings you lots of fun, good food, happy surprises and everything you've been wishing for.",
     "Keep smiling the way you do. It really suits you ✨",
   ],
   signoff: "Always, {from} 💜",
