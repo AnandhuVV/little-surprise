@@ -37,7 +37,7 @@ export const CONFIG = {
     },
   ],
 
-  photosTitle: "a few favourite pictures of you",
+  photosTitle: "favourites of you",
   // Her photos are private, so they're stored encrypted (photos/N.bin) and only open with the key in her link.
   // To change them: put the originals in private/originals (1.jpg, 2.png…), run  python3 private/seal_photos.py
   // then  node private/seal_photos.mjs , and keep one entry per photo here.
@@ -55,12 +55,12 @@ export const CONFIG = {
   letter: [
     "For {name},",
     "Happy birthday! 🎂",
-    "I wanted to make you something a little different this year — something you could open, poke at, and hopefully smile at.",
-    "Thank you for being the kind of person who makes everyone around them feel seen. Talking to you is honestly one of the best parts of my day.",
-    "I hope this year is gentle with you, surprises you in all the best ways, and gives you back every bit of the happiness you give everyone else.",
-    "Never stop being exactly you. ✨",
+    "I wanted to do something a little different this year, so I made you this. I hope it made you smile at least once. Okay, maybe twice 😄",
+    "Thank you for all the chats, the laughs and the random little moments. They've made so many of my days better.",
+    "I hope this year brings you lots of fun, good food, happy surprises and everything you've been wishing for.",
+    "Keep smiling the way you do. It really suits you ✨",
   ],
-  signoff: "— with lots of warmth, {from}",
+  signoff: "Always, {from} 💜",
 
   endingTitle: "Happy Birthday, {name} 💜",
   endingPrompt: "I hope today is every bit as lovely as you are ✨",
