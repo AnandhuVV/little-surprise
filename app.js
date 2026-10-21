@@ -262,19 +262,21 @@ const pmrem = new THREE.PMREMGenerator(renderer);
 world.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
 world.environmentIntensity = 0;
 
-// The room's backdrop: the pastel pink page itself, sunlit with soft pink shadows (default), or ?bg=night for the dark
-// plum room lit only by its candles. Both start black; the balloon pops reveal them.
+// The room's backdrop. Neither has a visible floor: the party stands on the page and only its shadows show.
+// dark (default): a deep berry room lit by the candles, fairy lights and a spotlight on the cake, for contrast.
+// pastel (?bg=pastel): the light pink page itself, sunlit, with soft pink shadows.
+// Both start black; the balloon pops reveal them.
 const BACKDROPS = {
-  pastel: {
-    fog: null, floor: null, blob: [0x9b3d66, 0.22], moon: [0xfff2f6, 0xffc9dc, 0.7], envMax: 0.75, blackout: [0.85, 0.6],
-    spot: 0, sun: 2.0, rim: 0.9, smoke: ['#fff5fa', '#ffe6f2', '#fbeaff'],
+  dark: {
+    fog: 0x2c0f28, shadow: [0x000000, 0.35], blob: [0x12060f, 0.4], moon: [0xa58bd6, 0x2b1730, 0.6], envMax: 0.25,
+    blackout: [0.7, 0.35], spot: 30, smoke: ['#a8789f', '#8e6a9e', '#b88aa8'],
   },
-  night: {
-    fog: 0x22122a, floor: 0x6a3d5f, blob: [0x12060f, 0.4], moon: [0xa58bd6, 0x2b1730, 0.55], envMax: 0.22, blackout: [0.7, 0.35],
-    spot: 30,
+  pastel: {
+    fog: null, shadow: [0xa8436f, 0.16], blob: [0x9b3d66, 0.22], moon: [0xfff2f6, 0xffc9dc, 0.7], envMax: 0.75,
+    blackout: [0.85, 0.6], spot: 0, sun: 2.0, rim: 0.9, smoke: ['#fff5fa', '#ffe6f2', '#fbeaff'],
   },
 };
-const BG_NAME = params.get('bg') in BACKDROPS ? params.get('bg') : 'pastel';
+const BG_NAME = params.get('bg') in BACKDROPS ? params.get('bg') : 'dark';
 const BG = BACKDROPS[BG_NAME];
 document.body.dataset.bg = BG_NAME;
 world.fog = BG.fog ? new THREE.Fog(BG.fog, 7.5, 15) : null;
@@ -325,7 +327,7 @@ function updateLamps(t) {
   const lit = room.env / room.envMax;
   world.fog?.color.setRGB(0, 0, 0).lerp(fogLit, lit);   // fog glows even unlit, so it rises with the room
   for (const m of blobLooks) m.opacity = BG.blob[1] * lit;
-  if (floor.material.isShadowMaterial) floor.material.opacity = 0.16 * lit;   // shadow maps are drawn even with the sun off
+  floor.material.opacity = BG.shadow[1] * lit;   // shadow maps are drawn even with the lights off
 }
 
 // switching on: a few stuttering flickers, then a smooth rise
@@ -333,21 +335,6 @@ function switchOn(target, { delay = 0, ms = 800, key = 'level', to = 1 } = {}) {
   return tween(ms, (e) => {
     target[key] = (e < 0.55 && Math.random() > 0.3 + e ? e * 0.15 : e) * to;
   }, { delay, easing: ease.inOutSine });
-}
-
-function radialTexture(inner = 0, outer = 1, size = 128) {
-  const c = document.createElement('canvas');
-  c.width = c.height = size;
-  const g = c.getContext('2d');
-  const h = size / 2;
-  const grd = g.createRadialGradient(h, h, 0, h, h, h);
-  grd.addColorStop(inner, 'rgba(255,255,255,1)');
-  grd.addColorStop(outer, 'rgba(255,255,255,0)');
-  g.fillStyle = grd;
-  g.fillRect(0, 0, size, size);
-  const t = new THREE.CanvasTexture(c);
-  t.colorSpace = THREE.SRGBColorSpace;
-  return t;
 }
 
 function softTexture() {
@@ -366,11 +353,8 @@ function softTexture() {
 }
 const softTex = softTexture();
 
-// the dark room's floor catches the pools of candlelight and fades into the dark at its edges; the pastel room has no
-// visible floor, only soft pink shadows on the page
-const floor = new THREE.Mesh(new THREE.CircleGeometry(4, 72), BG.floor
-  ? new THREE.MeshStandardMaterial({ color: BG.floor, roughness: 0.9, transparent: true, depthWrite: false, alphaMap: radialTexture(0.35, 1, 256) })
-  : new THREE.ShadowMaterial({ color: 0xa8436f, opacity: 0.16 }));
+// an invisible floor that only shows the shadows falling on it
+const floor = new THREE.Mesh(new THREE.CircleGeometry(4, 72), new THREE.ShadowMaterial({ color: BG.shadow[0], opacity: 0 }));
 floor.rotation.x = -Math.PI / 2;
 floor.receiveShadow = true;
 floor.renderOrder = -1;
