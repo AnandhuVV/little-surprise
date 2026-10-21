@@ -38,13 +38,16 @@ export const CONFIG = {
     },
   ],
 
-  photosTitle: "a few favourite moments",
+  photosTitle: "a few favourite pictures of you",
+  // her photos: put them in /photos as 1.jpg, 2.jpg… (any number; portrait shots fill the frame best).
+  // If a face gets cut off, add  focus: "top"  (or e.g. "50% 15%") to that photo to move the crop.
   photos: [
-    { src: "photos/1.jpg", caption: "add a favourite photo here 📸" },
-    { src: "photos/2.jpg", caption: "a day I still smile about" },
-    { src: "photos/3.jpg", caption: "this one makes me laugh every time" },
-    { src: "photos/4.jpg", caption: "the best kind of chaos" },
+    { src: "photos/1.jpg", caption: "that smile 🌸" },
+    { src: "photos/2.jpg", caption: "main character energy ✨" },
+    { src: "photos/3.jpg", caption: "a whole mood 💫" },
+    { src: "photos/4.jpg", caption: "effortlessly lovely 💜" },
   ],
+  photosDone: "here's to many more smiles 💜",   // shown once she's gone through them all
 
   letter: [
     "Hey {name},",

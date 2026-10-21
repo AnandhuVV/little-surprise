@@ -395,16 +395,37 @@ body[data-bg="dark"][data-scene="gifts"] .mute { background: rgba(255, 255, 255,
 .envelope.open .env-letter { transform: translateY(-58%); }
 
 /* ------------------------------------------------------------ polaroids */
+/* tall instant-film frames, since they're portraits of her */
 .stack {
-  --w: min(72vw, 290px);
+  --cap: 58px;                                      /* the caption strip under the photo */
+  --w: min(68vw, 270px, calc(75vh - 230px));        /* card width (container units refine it below) */
   position: relative;
   width: var(--w);
-  height: calc(var(--w) * 1.2);
+  height: calc((var(--w) - 24px) * 4 / 3 + 12px + var(--cap));
   margin: 6px 0 10px;
+  touch-action: none;
+}
+@supports (container-type: size) {
+  /* the stack takes the height the title, hint and button leave over and the card fits itself into it,
+     so a longer title or Samsung Internet's shorter screen never pushes the button off */
+  .stack {
+    container-type: size;
+    flex: 1 1 0;
+    min-height: 0;
+    width: 100%;
+    height: auto;
+    max-height: calc((min(68vw, 270px) - 24px) * 4 / 3 + 12px + var(--cap) + 20px);
+  }
+  .polaroid { --w: min(68vw, 270px, max(150px, (100cqh - 20px - 12px - var(--cap)) * 3 / 4 + 24px)); }
 }
 .polaroid {
+  --h: calc((var(--w) - 24px) * 4 / 3 + 12px + var(--cap));
   position: absolute;
-  inset: 0;
+  top: 50%;
+  left: 50%;
+  width: var(--w);
+  height: var(--h);
+  margin: calc(var(--h) / -2) 0 0 calc(var(--w) / -2);
   padding: 12px 12px 0;
   border-radius: 4px;
   background: #fefcff;
@@ -418,7 +439,7 @@ body[data-bg="dark"][data-scene="gifts"] .mute { background: rgba(255, 255, 255,
 .polaroid.back { transition: transform 0.45s cubic-bezier(.3, 1.4, .5, 1); }
 .polaroid .pic {
   width: 100%;
-  aspect-ratio: 1;
+  aspect-ratio: 3 / 4;
   border-radius: 2px;
   background: linear-gradient(135deg, var(--lav-light), var(--lav));
   overflow: hidden;
@@ -427,12 +448,13 @@ body[data-bg="dark"][data-scene="gifts"] .mute { background: rgba(255, 255, 255,
   width: 100%;
   height: 100%;
   object-fit: cover;
+  object-position: 50% 30%;     /* a face sits in the upper part of most portraits (config: focus moves it) */
   display: block;
   pointer-events: none;
 }
 .polaroid .caption {
   margin: 0;
-  height: calc(var(--w) * 1.2 - var(--w) + 24px - 12px);
+  height: var(--cap);
   display: grid;
   place-items: center;
   padding: 0 8px;
@@ -441,6 +463,7 @@ body[data-bg="dark"][data-scene="gifts"] .mute { background: rgba(255, 255, 255,
   font-weight: 700;
   line-height: 1.05;
   color: var(--ink);
+  text-wrap: balance;
 }
 .polaroid::before {           /* washi tape */
   content: "";

@@ -1507,6 +1507,7 @@ function buildStack() {
     el.innerHTML = '<div class="pic"><img alt="" draggable="false"></div><p class="caption"></p>';
     const img = el.querySelector('img');
     img.onerror = () => img.remove();
+    if (p.focus) img.style.objectPosition = p.focus;
     img.src = p.src;
     el.querySelector('.caption').textContent = fill(p.caption);
     stack.appendChild(el);
@@ -1547,7 +1548,7 @@ function buildStack() {
     setTimeout(() => {
       c.remove();
       if (stack.children.length) return;
-      swapText($('#photoHint'), 'more memories coming soon, I hope 💜');
+      swapText($('#photoHint'), fill(CONFIG.photosDone));
       $('#toLetter').classList.remove('hidden');
     }, 650);
   }
