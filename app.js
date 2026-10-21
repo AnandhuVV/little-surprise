@@ -697,7 +697,9 @@ const latex = (color) => ({ Balloon_Latex: { color, roughness: 0.3, clearcoat: 1
 const foil = (color) => ({ Heart_Foil: { color, metalness: 0.65, roughness: 0.2, clearcoat: 1, clearcoatRoughness: 0.1 } });
 const jelly = (color) => ({ Jelly: { color, roughness: 0.08, clearcoat: 1, clearcoatRoughness: 0.04, sheen: 0.3, sheenColor: 0xffd6e6 } });
 
-// dreamy gift boxes: a soft vertical gradient painted per box (bottom, middle, top), satin ribbon, glowing sparkle stars
+// dreamy gift boxes: a soft vertical gradient painted per box (bottom, middle, top), satin ribbon, glowing sparkle stars,
+// and a pale inside that shows when the lid comes off
+const GIFT_TOP = 0.88;  // the lid's top in the model (web_decor.py): the gradient runs from the floor up to it
 const starLooks = [];   // the stars glow up with the room, so the dark room stays dark
 const DREAMS = [
   { stops: ['#e08cf0', '#9b86ff', '#7fbaff'], ribbon: '#d79cff' },
@@ -717,7 +719,7 @@ function dreamGift({ stops, ribbon }) {
       o.geometry = o.geometry.clone();
       const pos = o.geometry.attributes.position, col = new Float32Array(pos.count * 3);
       for (let i = 0; i < pos.count; i++) {
-        const t = THREE.MathUtils.clamp(v.fromBufferAttribute(pos, i).applyMatrix4(o.matrixWorld).y / 1.06, 0, 1);
+        const t = THREE.MathUtils.clamp(v.fromBufferAttribute(pos, i).applyMatrix4(o.matrixWorld).y / GIFT_TOP, 0, 1);
         if (t < 0.5) c.lerpColors(cs[0], cs[1], t * 2); else c.lerpColors(cs[1], cs[2], t * 2 - 1);
         c.toArray(col, i * 3);
       }
@@ -728,6 +730,8 @@ function dreamGift({ stops, ribbon }) {
     } else if (name === 'Dream_Stars') {
       o.material = new THREE.MeshStandardMaterial({ name, color: 0xffffff, emissive: 0xfff0fa, emissiveIntensity: 0, roughness: 0.4 });
       starLooks.push(o.material);
+    } else if (name === 'Dream_Inside') {   // its own material per box, like the rest, so a fading lid fades alone
+      o.material = new THREE.MeshPhysicalMaterial({ name, color: cs[1].clone().lerp(new THREE.Color(1, 1, 1), 0.6), roughness: 0.6, sheen: 0.4, sheenColor: 0xffffff });
     }
   });
   return g;
