@@ -235,13 +235,15 @@ const camera = new THREE.PerspectiveCamera(30, 1, 0.05, 40);
 const sun = new THREE.DirectionalLight(0xfff4ec, 2.0);
 sun.position.set(1.4, 3.2, 2.2);
 sun.castShadow = true;
-sun.shadow.mapSize.set(1024, 1024);
-Object.assign(sun.shadow.camera, { left: -1.4, right: 1.4, top: 1.4, bottom: -1.4, near: 0.5, far: 8 });
+sun.shadow.mapSize.set(2048, 2048);
+Object.assign(sun.shadow.camera, { left: -2.4, right: 2.4, top: 2.4, bottom: -2.4, near: 0.5, far: 9 });
 sun.shadow.bias = -0.0004;
 sun.shadow.normalBias = 0.015;
-world.add(sun, new THREE.HemisphereLight(0xfff2f6, 0xffc9dc, 0.7));
+const rim = new THREE.DirectionalLight(0xffd0e6, 0.9);   // soft pink back light so balloons and icing get a glowing edge
+rim.position.set(-1.5, 2.5, -3);
+world.add(sun, rim, new THREE.HemisphereLight(0xfff2f6, 0xffc9dc, 0.7));
 
-const ground = new THREE.Mesh(new THREE.CircleGeometry(3, 48), new THREE.ShadowMaterial({ color: 0xa8436f, opacity: 0.16 }));
+const ground = new THREE.Mesh(new THREE.CircleGeometry(3.5, 64), new THREE.ShadowMaterial({ color: 0xa8436f, opacity: 0.16 }));
 ground.rotation.x = -Math.PI / 2;
 ground.receiveShadow = true;
 world.add(ground);
@@ -283,29 +285,84 @@ function blob(size) {   // soft contact shadow
   return m;
 }
 
+function sparkleTexture() {   // four-point twinkle
+  const c = document.createElement('canvas');
+  c.width = c.height = 64;
+  const g = c.getContext('2d');
+  const grd = g.createRadialGradient(32, 32, 0, 32, 32, 32);
+  grd.addColorStop(0, 'rgba(255,255,255,0.9)');
+  grd.addColorStop(0.15, 'rgba(255,255,255,0.35)');
+  grd.addColorStop(1, 'rgba(255,255,255,0)');
+  g.fillStyle = grd;
+  g.fillRect(0, 0, 64, 64);
+  g.fillStyle = '#fff';
+  g.beginPath();
+  for (let i = 0; i < 8; i++) {
+    const r = i % 2 ? 3 : 31, a = (i / 8) * Math.PI * 2;
+    g.lineTo(32 + Math.sin(a) * r, 32 + Math.cos(a) * r);
+  }
+  g.fill();
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace;
+  return t;
+}
+
+function pennantTexture(bg) {   // pastel flag with white polka dots
+  const c = document.createElement('canvas');
+  c.width = c.height = 128;
+  const g = c.getContext('2d');
+  g.fillStyle = bg;
+  g.fillRect(0, 0, 128, 128);
+  g.fillStyle = 'rgba(255,255,255,0.9)';
+  for (let row = 0, y = 12; y < 128; y += 21, row++) {
+    for (let x = row % 2 ? 0 : 10.5; x < 132; x += 21) {
+      g.beginPath();
+      g.arc(x, y, 4, 0, Math.PI * 2);
+      g.fill();
+    }
+  }
+  g.fillRect(0, 0, 128, 7);
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace;
+  return t;
+}
+
+// one physical material per (material, look), shared between clones
+const looks = new Map();
+function tinted(m, props) {
+  const key = m.name + JSON.stringify(props);
+  if (!looks.has(key)) {
+    looks.set(key, new THREE.MeshPhysicalMaterial({
+      name: m.name, color: m.color, roughness: m.roughness, metalness: m.metalness, vertexColors: m.vertexColors, ...props,
+    }));
+  }
+  return looks.get(key);
+}
+
 const controls = new OrbitControls(camera, canvas);
 Object.assign(controls, {
   enabled: false, enableZoom: false, enablePan: false, enableDamping: true, dampingFactor: 0.08,
-  rotateSpeed: 0.6, autoRotate: false, autoRotateSpeed: 1.3,
-  minPolarAngle: THREE.MathUtils.degToRad(50), maxPolarAngle: THREE.MathUtils.degToRad(82),
+  rotateSpeed: 0.6, autoRotate: false,
+  minPolarAngle: THREE.MathUtils.degToRad(55), maxPolarAngle: THREE.MathUtils.degToRad(84),
+  minAzimuthAngle: -0.75, maxAzimuthAngle: 0.75,   // the party is set up in front; the cake turns by itself
 });
 
 // Frame a box so it fits between the title and the button, on tall phones and wide screens alike.
 let framed = null;
-function framing(box, elevDeg, azimuth = 0) {
+function framing(box, elevDeg, azimuth = 0, marginX = 1.2) {
   const size = box.getSize(new THREE.Vector3()), target = box.getCenter(new THREE.Vector3());
   const e = THREE.MathUtils.degToRad(elevDeg);
   const vf = THREE.MathUtils.degToRad(camera.fov) / 2;
   const hf = Math.atan(Math.tan(vf) * camera.aspect);
   const depth = Math.max(size.x, size.z);
   const tall = size.y * Math.cos(e) + size.z * Math.sin(e);
-  const dist = Math.max((tall / 2 / Math.tan(vf)) * 1.55, (size.x / 2 / Math.tan(hf)) * 1.2) + depth / 2;
+  const dist = Math.max((tall / 2 / Math.tan(vf)) * 1.55, (size.x / 2 / Math.tan(hf)) * marginX) + depth / 2;
   const dir = new THREE.Vector3(Math.sin(azimuth) * Math.cos(e), Math.sin(e), Math.cos(azimuth) * Math.cos(e));
   return { target, pos: target.clone().addScaledVector(dir, dist) };
 }
-function frame(box, elevDeg) {
-  framed = { box, elevDeg };
-  const f = framing(box, elevDeg, controls.getAzimuthalAngle());
+function frame(box, elevDeg, marginX = 1.2) {
+  framed = { box, elevDeg, marginX };
+  const f = framing(box, elevDeg, controls.getAzimuthalAngle(), marginX);
   camera.position.copy(f.pos);
   controls.target.copy(f.target);
   camera.lookAt(f.target);
@@ -316,7 +373,7 @@ function resize() {
   camera.aspect = w / h;
   camera.setViewOffset(w, h, 0, -h * 0.06, w, h);   // nudge the 3D content below the title
   camera.updateProjectionMatrix();
-  if (framed) frame(framed.box, framed.elevDeg);
+  if (framed) frame(framed.box, framed.elevDeg, framed.marginX);
 }
 addEventListener('resize', resize);
 resize();
@@ -324,11 +381,11 @@ resize();
 // ------------------------------------------------------------------ loading
 const draco = new DRACOLoader().setDecoderPath('https://cdn.jsdelivr.net/npm/three@0.165.0/examples/jsm/libs/draco/gltf/');
 const loader = new GLTFLoader().setDRACOLoader(draco);
-const progress = { cake: 0, gift: 0 };
+const progress = { cake: 0, decor: 0, gift: 0 };
 function load(url, key) {
   return new Promise((resolve, reject) => loader.load(url, resolve, (e) => {
     if (e.total) progress[key] = e.loaded / e.total;
-    $('#progress').style.width = `${(progress.cake * 0.9 + progress.gift * 0.1) * 92}%`;
+    $('#progress').style.width = `${(progress.cake * 0.78 + progress.decor * 0.19 + progress.gift * 0.03) * 92}%`;
   }, reject));
 }
 
@@ -336,13 +393,32 @@ function load(url, key) {
 let cake, cakeBox, candleLight;
 const flames = [];
 let wished = false, cakeReadyAt = Infinity;
+const turntable = new THREE.Group();   // stand + cake, slowly turning
+const STAND_H = 0.3;
+const CANDY = { roughness: 0.14, clearcoat: 1, clearcoatRoughness: 0.05 };
+const CAKE_LOOK = {
+  Icing_Glossy_White: { roughness: 0.3, clearcoat: 0.6, clearcoatRoughness: 0.2, sheen: 0.3, sheenColor: 0xffffff },
+  Cream_Piped: { roughness: 0.5, sheen: 0.7, sheenColor: 0xffffff },
+  Cake_Pastel_Pink: { roughness: 0.7, sheen: 0.8, sheenColor: 0xffe4ee, sheenRoughness: 0.5 },
+  Ribbon_Glossy_Orange: { roughness: 0.25, clearcoat: 1, clearcoatRoughness: 0.1 },
+  Ribbon_Glossy_Red: { roughness: 0.25, clearcoat: 1, clearcoatRoughness: 0.1 },
+  Pearl_Sky_Blue: { roughness: 0.18, clearcoat: 1, iridescence: 0.7, iridescenceIOR: 1.5 },
+};
 
 function setupCake(gltf) {
   cake = gltf.scene;
   cake.traverse((o) => {
-    if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; }
+    if (!o.isMesh) return;
+    o.castShadow = true;
+    o.receiveShadow = true;
+    const name = o.material.name;
+    const look = CAKE_LOOK[name] || (name.startsWith('Ref_Candy') ? CANDY : name.startsWith('Web_Candle') ? { roughness: 0.4, clearcoat: 0.5 } : null);
+    if (look) o.material = tinted(o.material, look);
   });
-  cakeBox = new THREE.Box3().setFromObject(cake);
+  const stand = make('Stand');   // modelled with the plate top at 0 and the foot at -STAND_H
+  stand.position.y = cake.position.y = STAND_H;
+  turntable.add(stand, cake);
+  cakeBox = new THREE.Box3().setFromObject(turntable);
   for (let i = 1; i <= 6; i++) {
     const f = cake.getObjectByName(`Flame_${i}`);
     if (!f) continue;
@@ -362,9 +438,10 @@ function setupCake(gltf) {
   }
   candleLight = new THREE.PointLight(0xffa860, 0.07, 0, 2);
   candleLight.position.set(0, 1.13, 0);
-  cake.add(candleLight, blob(1.9));
-  cake.visible = false;
-  world.add(cake);
+  cake.add(candleLight);
+  turntable.add(blob(1.2));
+  turntable.visible = false;
+  world.add(turntable);
 }
 
 function animateFlames(t) {
@@ -412,12 +489,11 @@ function stepPuffs(dt) {
 
 function startCake() {
   go('cake');
-  cake.visible = true;
-  frame(cakeBox, 15);
+  turntable.visible = true;
+  frame(cakeBox, 14, 1.3);
   controls.enabled = true;
-  controls.autoRotate = true;
-  cake.scale.setScalar(0.001);
-  tween(1000, (e) => cake.scale.setScalar(Math.max(e, 0.001)), { easing: ease.outBack, delay: 300 });
+  turntable.scale.setScalar(0.001);
+  tween(1000, (e) => turntable.scale.setScalar(Math.max(e, 0.001)), { easing: ease.outBack, delay: 300 });
   cakeReadyAt = performance.now() + 1400;
 }
 
@@ -438,6 +514,274 @@ async function blowOut() {
   swapText($('#cakeHint'), fill(CONFIG.afterWish));
   await sleep(1800);
   $('#toGifts').classList.remove('hidden');
+}
+
+// ------------------------------------------------------------------ party decorations (modelled in Blender, decor.glb)
+const decor = new THREE.Group();
+const balloons = [], floaters = [], pennants = [];
+let decorGltf, falling, sparkles, fairy;
+const UP = new THREE.Vector3(0, 1, 0);
+const CONFETTI = ['#ff8fb8', '#ffc2d8', '#c9b3ff', '#f6cf6e', '#9fe3c9', '#8fd0ff', '#ffffff'];
+const latex = (color) => ({ Balloon_Latex: { color, roughness: 0.3, clearcoat: 1, clearcoatRoughness: 0.1, sheen: 0.5, sheenColor: 0xffffff } });
+const foil = (color) => ({ Heart_Foil: { color, metalness: 0.65, roughness: 0.2, clearcoat: 1, clearcoatRoughness: 0.1 } });
+const candy = (color) => ({ Heart_Foil: { color, metalness: 0, ...CANDY } });
+const wrapping = (p, r) => ({ Gift_Paper: { color: p, roughness: 0.45, clearcoat: 0.35 }, Gift_Ribbon: { color: r, roughness: 0.3, clearcoat: 0.6 } });
+
+function make(name, tints = {}, shadow = true) {
+  const obj = decorGltf.scene.getObjectByName(name).clone(true);
+  obj.traverse((o) => {
+    if (!o.isMesh) return;
+    o.castShadow = shadow;
+    o.receiveShadow = true;
+    if (tints[o.material.name]) o.material = tinted(o.material, tints[o.material.name]);
+  });
+  return obj;
+}
+
+function place(obj, [x, y, z], rotY = 0, scale = 1) {
+  obj.position.set(x, y, z);
+  obj.rotation.y = rotY;
+  obj.scale.setScalar(scale);
+  decor.add(obj);
+  return obj;
+}
+
+const stringMat = new THREE.MeshStandardMaterial({ color: 0xfff3f7, roughness: 0.5 });
+function balloon(kind, look, anchor, knot, scale) {
+  const holder = new THREE.Group();          // pivots at the tie point, so the whole balloon sways on its string
+  holder.position.set(...anchor);
+  const rel = new THREE.Vector3(...knot).sub(holder.position);
+  const bend = (k, s) => rel.clone().multiplyScalar(k).add(new THREE.Vector3(rand(-s, s), 0, rand(-s, s)));
+  const curve = new THREE.CatmullRomCurve3([new THREE.Vector3(), bend(0.3, 0.04), bend(0.6, 0.05), bend(0.85, 0.02), rel]);
+  const lean = new THREE.Group();            // tilts the balloon along the string
+  lean.position.copy(rel);
+  lean.quaternion.setFromUnitVectors(UP, rel.clone().sub(curve.getPoint(0.9)).normalize());
+  const body = make(kind, look, false);
+  body.scale.setScalar(scale);
+  lean.add(body);
+  holder.add(new THREE.Mesh(new THREE.TubeGeometry(curve, 48, 0.0026, 5), stringMat), lean);
+  decor.add(holder);
+  balloons.push({ holder, body, seed: rand(0, 6) });
+}
+
+function bunting() {
+  const pts = [];
+  for (let i = 0; i <= 40; i++) {
+    const x = -3 + (6 * i) / 40, k = (x / 3) ** 2;
+    pts.push(new THREE.Vector3(x, 1.74 + 0.55 * k, -1.15 + 0.25 * k));
+  }
+  const curve = new THREE.CatmullRomCurve3(pts);
+  decor.add(new THREE.Mesh(new THREE.TubeGeometry(curve, 160, 0.004, 5), stringMat));
+  const flag = new THREE.BufferGeometry();
+  flag.setAttribute('position', new THREE.Float32BufferAttribute([-0.07, 0, 0, 0.07, 0, 0, 0, -0.16, 0], 3));
+  flag.setAttribute('uv', new THREE.Float32BufferAttribute([0, 1, 1, 1, 0.5, 0], 2));
+  flag.computeVertexNormals();
+  const mats = ['#ffb3cf', '#d9c4ff', '#b8ecd7', '#ffd6b0', '#fff0b3'].map((c) =>
+    new THREE.MeshStandardMaterial({ map: pennantTexture(c), side: THREE.DoubleSide, roughness: 0.85 }));
+  const N = 34;
+  for (let i = 0; i < N; i++) {
+    const u = (i + 0.5) / N, tan = curve.getTangentAt(u);
+    const holder = new THREE.Group();
+    holder.position.copy(curve.getPointAt(u));
+    holder.rotation.z = Math.atan2(tan.y, tan.x);
+    const m = new THREE.Mesh(flag, mats[i % mats.length]);
+    holder.add(m);
+    decor.add(holder);
+    pennants.push({ m, seed: i * 0.9 });
+  }
+  // fairy lights between the flags: tiny bulbs plus additive glow points, twinkling
+  const M = N + 1;
+  const bulbs = new THREE.InstancedMesh(new THREE.SphereGeometry(0.012, 10, 8), new THREE.MeshBasicMaterial({ toneMapped: false }), M);
+  const glowPos = new Float32Array(M * 3);
+  const d = new THREE.Object3D();
+  for (let i = 0; i < M; i++) {
+    d.position.copy(curve.getPointAt(i / N)).add(new THREE.Vector3(0, -0.018, 0.004));
+    d.updateMatrix();
+    bulbs.setMatrixAt(i, d.matrix);
+    bulbs.setColorAt(i, new THREE.Color(1, 0.85, 0.55));
+    d.position.toArray(glowPos, i * 3);
+  }
+  const glowGeo = new THREE.BufferGeometry();
+  glowGeo.setAttribute('position', new THREE.BufferAttribute(glowPos, 3));
+  glowGeo.setAttribute('color', new THREE.BufferAttribute(new Float32Array(M * 3), 3));
+  const glow = new THREE.Points(glowGeo, new THREE.PointsMaterial({
+    map: softTex, size: 0.16, vertexColors: true, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false,
+  }));
+  bulbs.frustumCulled = glow.frustumCulled = false;
+  decor.add(bulbs, glow);
+  fairy = { bulbs, glow, n: M, seeds: Array.from({ length: M }, () => rand(0, 6)), c: new THREE.Color() };
+}
+
+function floorConfetti() {
+  const n = 280;
+  const mesh = new THREE.InstancedMesh(new THREE.PlaneGeometry(0.034, 0.016).rotateX(-Math.PI / 2),
+    new THREE.MeshStandardMaterial({ roughness: 0.5, side: THREE.DoubleSide }), n);
+  const d = new THREE.Object3D(), c = new THREE.Color();
+  for (let i = 0; i < n; i++) {
+    const r = 0.78 + Math.random() ** 0.8 * 2.2, a = rand(0, Math.PI * 2);
+    d.position.set(Math.cos(a) * r, 0.002, Math.sin(a) * r * 0.85);
+    d.rotation.set(rand(-0.12, 0.12), rand(0, Math.PI * 2), rand(-0.12, 0.12));
+    d.scale.setScalar(rand(0.7, 1.25));
+    d.updateMatrix();
+    mesh.setMatrixAt(i, d.matrix);
+    mesh.setColorAt(i, c.set(CONFETTI[i % CONFETTI.length]));
+  }
+  mesh.receiveShadow = true;
+  decor.add(mesh);
+}
+
+function respawnPiece(p, anywhere) {
+  Object.assign(p, {
+    x: rand(-2.3, 2.3), z: rand(-1.5, 1.3), y: anywhere ? rand(0, 3.2) : 3.2, v: rand(0.1, 0.22),
+    rx: rand(0, 6), ry: rand(0, 6), sx: rand(1, 3.5), sy: rand(0.5, 2), ph: rand(0, 6),
+  });
+  return p;
+}
+
+function setupFalling() {
+  const n = 90;
+  const mesh = new THREE.InstancedMesh(new THREE.PlaneGeometry(0.03, 0.015),
+    new THREE.MeshStandardMaterial({ roughness: 0.5, side: THREE.DoubleSide }), n);
+  for (let i = 0; i < n; i++) mesh.setColorAt(i, new THREE.Color(CONFETTI[(i * 3) % CONFETTI.length]));
+  mesh.frustumCulled = false;
+  decor.add(mesh);
+  falling = { mesh, pieces: Array.from({ length: n }, () => respawnPiece({}, true)), d: new THREE.Object3D() };
+}
+
+function resetFloater(f, anywhere) {
+  do { f.x = rand(-2.3, 2.3); f.z = rand(-1.7, -0.45); } while (Math.abs(f.x) < 0.55 && f.z > -1.05);
+  f.y = anywhere ? rand(0.2, FLOAT_TOP) : 0.05;
+}
+const FLOAT_TOP = 2.15;   // fade out before drifting up behind the title
+
+function setupFloaters() {
+  const hearts = ['#ff8fb8', '#ffb3cf', '#d9b8ff', '#ff6f9f'];
+  for (let i = 0; i < 12; i++) {
+    const star = i % 3 === 2;
+    const obj = star ? make('Star', {}, false) : make('Heart', candy(hearts[i % hearts.length]), false);
+    if (!star) obj.getObjectByName('Heart_Valve').visible = false;
+    const f = { obj, base: star ? rand(0.6, 0.85) : rand(0.2, 0.32), v: rand(0.05, 0.1), seed: rand(0, 6) };
+    resetFloater(f, true);
+    decor.add(obj);
+    floaters.push(f);
+  }
+}
+
+function setupSparkles() {
+  const n = 36;
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(n * 3), 3));
+  geo.setAttribute('color', new THREE.BufferAttribute(new Float32Array(n * 3), 3));
+  const pts = new THREE.Points(geo, new THREE.PointsMaterial({
+    map: sparkleTexture(), size: 0.11, vertexColors: true, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false,
+  }));
+  pts.frustumCulled = false;
+  decor.add(pts);
+  sparkles = { pts, n, st: Array.from({ length: n }, () => ({ speed: rand(0.7, 1.6), seed: rand(0, 6), prev: 0 })) };
+  for (let i = 0; i < n; i++) moveSparkle(i);
+}
+function moveSparkle(i) {
+  sparkles.pts.geometry.attributes.position.setXYZ(i, rand(-1.9, 1.9), rand(0.15, 2.5), rand(-1.3, 1.0));
+  sparkles.pts.geometry.attributes.position.needsUpdate = true;
+}
+
+function setupDecor(giftGltf) {
+  // little gifts on the floor hold the balloon strings
+  const giftAt = (pos, rot, s, look) => {
+    const g = giftGltf.scene.clone(true);
+    g.traverse((o) => {
+      if (!o.isMesh) return;
+      o.castShadow = o.receiveShadow = true;
+      o.material = tinted(o.material, look[o.material.name]);
+    });
+    return place(g, pos, rot, s);
+  };
+  giftAt([-0.8, 0, -0.52], 0.5, 0.3, wrapping('#ffd1a6', '#ffffff'));
+  giftAt([0.84, 0, -0.46], -0.4, 0.27, wrapping('#b5dcff', '#ff9ec4'));
+  giftAt([1.75, 0, -0.35], 0.2, 0.34, wrapping('#ffb3cf', '#f6cf6e'));
+  giftAt([1.98, 0, 0.05], -0.6, 0.22, wrapping('#c7b2ff', '#ffffff'));
+
+  balloon('Balloon', latex('#ffadc9'), [-0.8, 0.3, -0.52], [-0.9, 1.22, -0.64], 0.85);
+  balloon('Balloon', latex('#cdb4ff'), [-0.8, 0.3, -0.52], [-0.6, 1.08, -0.78], 0.75);
+  balloon('Heart', foil('#f2c46d'), [-0.8, 0.3, -0.52], [-1.0, 0.95, -0.42], 0.8);
+  balloon('Balloon', latex('#a8e6cf'), [0.84, 0.27, -0.46], [0.92, 1.2, -0.6], 0.85);
+  balloon('Balloon', latex('#ffd1a6'), [0.84, 0.27, -0.46], [0.64, 1.05, -0.74], 0.72);
+  balloon('Heart', foil('#ffbcd2'), [0.84, 0.27, -0.46], [1.02, 0.93, -0.36], 0.8);
+  // wider screens see a little more of the party
+  balloon('Balloon', latex('#b5dcff'), [1.75, 0.37, -0.35], [1.7, 1.45, -0.55], 0.9);
+  balloon('Balloon', latex('#fff0a6'), [1.75, 0.37, -0.35], [1.98, 1.3, -0.45], 0.8);
+  balloon('Balloon', latex('#ffadc9'), [-1.8, 0.0, -0.6], [-1.75, 1.5, -0.7], 0.9);
+  balloon('Heart', foil('#c9b3ff'), [-1.8, 0.0, -0.6], [-2.05, 1.25, -0.5], 0.85);
+  balloon('Balloon', latex('#a8e6cf'), [-1.8, 0.0, -0.6], [-1.55, 1.3, -0.85], 0.75);
+
+  place(make('Cupcake', { Cupcake_Frosting: { color: '#ffc2dc', roughness: 0.5, sheen: 0.6, sheenColor: 0xffffff } }), [-0.62, 0, 0.9], 0.4);
+  place(make('Cupcake', { Cupcake_Frosting: { color: '#c9f0dd', roughness: 0.5, sheen: 0.6, sheenColor: 0xffffff } }), [-1.55, 0, 0.55], 2.1, 0.9);
+  const shells = ['#ffb3cf', '#b8ecd7', '#d9c4ff', '#fff0a6'];
+  shells.slice(0, 3).forEach((c, i) => {
+    place(make('Macaron', { Macaron_Shell: { color: c, roughness: 0.6, sheen: 0.7, sheenColor: 0xffffff } }),
+      [0.6 + rand(-0.008, 0.008), i * 0.112, 0.86 + rand(-0.008, 0.008)], rand(0, 6));
+  });
+  const leaning = place(make('Macaron', { Macaron_Shell: { color: shells[3], roughness: 0.6, sheen: 0.7, sheenColor: 0xffffff } }), [0.73, 0.075, 0.95], 0);
+  leaning.rotation.set(0, 0.6, 1.25);
+  const hat = place(make('PartyHat'), [-0.98, 0.1, 0.42], 0);
+  hat.rotation.set(0.1, 0.9, 1.45);
+  place(make('PartyHat'), [1.45, 0, 0.55], 0, 1.1);
+
+  bunting();
+  floorConfetti();
+  setupFalling();
+  setupFloaters();
+  setupSparkles();
+  world.add(decor);
+}
+
+function animateDecor(t, dt) {
+  for (const b of balloons) {
+    b.holder.rotation.z = Math.sin(t * 0.7 + b.seed) * 0.045;
+    b.holder.rotation.x = Math.sin(t * 0.53 + b.seed * 1.7) * 0.035;
+    b.body.rotation.y = Math.sin(t * 0.4 + b.seed) * 0.5;
+  }
+  for (const p of pennants) p.m.rotation.x = Math.sin(t * 1.7 + p.seed) * 0.2;
+  for (const f of floaters) {
+    f.y += f.v * dt;
+    if (f.y > FLOAT_TOP) resetFloater(f, false);
+    const k = THREE.MathUtils.smoothstep(f.y, 0.05, 0.5) * (1 - THREE.MathUtils.smoothstep(f.y, FLOAT_TOP - 0.45, FLOAT_TOP));
+    f.obj.position.set(f.x + Math.sin(t * 0.5 + f.seed) * 0.08, f.y, f.z);
+    f.obj.rotation.set(0, t * 0.7 + f.seed, Math.sin(t * 0.8 + f.seed) * 0.2);
+    f.obj.scale.setScalar(Math.max(f.base * k, 0.001));
+  }
+  const { mesh, pieces, d } = falling;
+  pieces.forEach((p, i) => {
+    p.y -= p.v * dt;
+    if (p.y < 0.02) respawnPiece(p, false);
+    p.rx += p.sx * dt;
+    p.ry += p.sy * dt;
+    d.position.set(p.x + Math.sin(t * 1.3 + p.ph) * 0.06, p.y, p.z + Math.cos(t * 1.1 + p.ph) * 0.04);
+    d.rotation.set(p.rx, p.ry, p.ph);
+    d.updateMatrix();
+    mesh.setMatrixAt(i, d.matrix);
+  });
+  mesh.instanceMatrix.needsUpdate = true;
+
+  const glowCol = fairy.glow.geometry.attributes.color;
+  for (let i = 0; i < fairy.n; i++) {
+    const b = 0.55 + 0.45 * Math.sin(t * 2.2 + fairy.seeds[i] * 3) * Math.sin(t * 0.9 + fairy.seeds[i]);
+    fairy.c.setRGB(1, 0.82, 0.5).multiplyScalar(0.5 + 0.5 * b);
+    fairy.bulbs.setColorAt(i, fairy.c);
+    glowCol.setXYZ(i, b * 0.9, b * 0.7, b * 0.4);
+  }
+  fairy.bulbs.instanceColor.needsUpdate = true;
+  glowCol.needsUpdate = true;
+
+  const sc = sparkles.pts.geometry.attributes.color;
+  sparkles.st.forEach((s, i) => {
+    const w = Math.sin(t * s.speed + s.seed);
+    if (w > 0 && s.prev <= 0) moveSparkle(i);    // jump somewhere new each time it fades in
+    s.prev = w;
+    const b = Math.max(0, w) ** 3;
+    sc.setXYZ(i, b, b * 0.94, b * 0.8);
+  });
+  sc.needsUpdate = true;
 }
 
 // ------------------------------------------------------------------ gifts
@@ -498,9 +842,8 @@ function animateGifts(t) {
 async function toGifts() {
   $('#toGifts').classList.add('hidden');
   controls.enabled = false;
-  controls.autoRotate = false;
-  await tween(650, (e) => cake.scale.setScalar(Math.max(1 - e, 0.001)), { easing: ease.inBack });
-  cake.visible = false;
+  await tween(650, (e) => turntable.scale.setScalar(Math.max(1 - e, 0.001)), { easing: ease.inBack });
+  turntable.visible = false;
   go('gifts');
   gifts.visible = true;
   const from = { pos: camera.position.clone(), target: controls.target.clone() };
@@ -722,15 +1065,21 @@ function loop(now) {
   if (scene !== 'cake' && scene !== 'gifts') return;
   animateFlames(t);
   animateGifts(t);
+  animateDecor(t, dt);
   stepPuffs(dt);
+  if (turntable.visible) turntable.rotation.y += dt * 0.16;
   if (controls.enabled) controls.update();
   renderer.render(world, camera);
 }
 requestAnimationFrame(loop);
 
 try {
-  const [cakeGltf, giftGltf] = await Promise.all([load('assets/cake.glb', 'cake'), load('assets/gift.glb', 'gift')]);
+  const [cakeGltf, decorLoaded, giftGltf] = await Promise.all([
+    load('assets/cake.glb', 'cake'), load('assets/decor.glb', 'decor'), load('assets/gift.glb', 'gift'),
+  ]);
+  decorGltf = decorLoaded;
   setupCake(cakeGltf);
+  setupDecor(giftGltf);
   setupGifts(giftGltf);
   buildStack();
   renderer.compile(world, camera);

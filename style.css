@@ -94,7 +94,15 @@ body[data-scene="gifts"] #stage { opacity: 1; pointer-events: auto; }
   gap: 8px;
   max-width: 460px;
 }
-.top { padding-top: 8px; }
+.top { position: relative; padding-top: 8px; }
+.top::before {               /* soft halo so the text stays readable over balloons and bunting */
+  content: "";
+  position: absolute;
+  inset: -30px -50px -24px;
+  z-index: -1;
+  background: radial-gradient(closest-side, rgba(255, 244, 249, 0.85), rgba(255, 244, 249, 0.55) 55%, transparent);
+  pointer-events: none;
+}
 .bottom { min-height: 64px; justify-content: flex-end; }
 
 /* ------------------------------------------------------------ type */
