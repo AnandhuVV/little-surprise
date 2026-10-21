@@ -72,6 +72,11 @@ body[data-scene="cake"] #stage { transition-delay: 0.9s; }   /* wait for the roo
 }
 body[data-bg="dark"] #night {
   background:
+    /* a few soft rose clouds drifting along the top, melting into the lavender */
+    radial-gradient(42% 24% at 12% 0%, rgba(240, 124, 182, 0.46), rgba(240, 124, 182, 0.16) 45%, transparent 75%),
+    radial-gradient(36% 21% at 88% 2%, rgba(250, 148, 196, 0.4), rgba(250, 148, 196, 0.13) 45%, transparent 75%),
+    radial-gradient(24% 13% at 35% 4%, rgba(222, 116, 180, 0.3), transparent 75%),
+    radial-gradient(20% 11% at 66% 0%, rgba(255, 166, 206, 0.26), transparent 75%),
     radial-gradient(65% 40% at 50% 56%, rgba(130, 95, 215, 0.42), transparent 75%),
     radial-gradient(circle at 15% 22%, rgba(255, 205, 160, 0.12), transparent 7%),
     radial-gradient(circle at 82% 30%, rgba(205, 180, 255, 0.13), transparent 8%),
