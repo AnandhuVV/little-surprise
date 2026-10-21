@@ -488,23 +488,7 @@ const CAKE_LOOK = {
   Ribbon_Glossy_Orange: { roughness: 0.25, clearcoat: 1, clearcoatRoughness: 0.1 },
   Ribbon_Glossy_Red: { roughness: 0.25, clearcoat: 1, clearcoatRoughness: 0.1 },
   Pearl_Sky_Blue: { roughness: 0.18, clearcoat: 1, iridescence: 0.7, iridescenceIOR: 1.5 },
-  // the pink fondant cake (cake2.glb) with chocolate ganache
-  C2_Fondant_Cream: { roughness: 0.55, sheen: 0.7, sheenColor: 0xffffff, sheenRoughness: 0.5 },
-  C2_Fondant_Pink: { roughness: 0.5, sheen: 0.7, sheenColor: 0xffe4ee, sheenRoughness: 0.5 },
-  C2_Chocolate: { roughness: 0.2, clearcoat: 1, clearcoatRoughness: 0.12 },
-  C2_WhiteChoc: { roughness: 0.3, clearcoat: 0.6 },
-  C2_Ribbon: { roughness: 0.3, clearcoat: 0.3, sheen: 0.8, sheenColor: 0xffd0e4 },
-  C2_Board: { roughness: 0.35, clearcoat: 0.6 },
-  C2_Heart: { roughness: 0.2, clearcoat: 1, clearcoatRoughness: 0.06 },
-  C2_Pearl_Pink: CANDY,
-  C2_Candle: { roughness: 0.35, clearcoat: 0.5 },
-  C2_Twist_Candle: { roughness: 0.3, clearcoat: 0.7, clearcoatRoughness: 0.15 },
-  C2_Candy: CANDY,
-  C2_Meringue: { roughness: 0.65, sheen: 0.5, sheenColor: 0xffffff },
-  C2_Sprinkles: { roughness: 0.35, clearcoat: 0.5 },
 };
-// two cake designs to choose from: ?cake=pink shows the pink fondant cake with chocolate icing
-const PINK_CAKE = params.get('cake') === 'pink';
 
 function setupCake(gltf) {
   cake = gltf.scene;
@@ -516,14 +500,11 @@ function setupCake(gltf) {
     const look = CAKE_LOOK[name] || (name.startsWith('Ref_Candy') ? CANDY : name.startsWith('Web_Candle') ? { roughness: 0.4, clearcoat: 0.5 } : null);
     if (look) o.material = tinted(o.material, look);
   });
-  if (!PINK_CAKE) {               // the pink cake brings its own board; the first one sits on the stand
-    const stand = make('Stand');   // modelled with the plate top at 0 and the foot at -STAND_H
-    stand.position.y = cake.position.y = STAND_H;
-    turntable.add(stand);
-  }
-  turntable.add(cake);
+  const stand = make('Stand');   // modelled with the plate top at 0 and the foot at -STAND_H
+  stand.position.y = cake.position.y = STAND_H;
+  turntable.add(stand, cake);
   cakeBox = new THREE.Box3().setFromObject(turntable);
-  for (let i = 1; i <= 12; i++) {   // the first cake has six candles, the pink one eight
+  for (let i = 1; i <= 6; i++) {
     const f = cake.getObjectByName(`Flame_${i}`);
     if (!f) continue;
     f.traverse((o) => {
@@ -540,11 +521,10 @@ function setupCake(gltf) {
     f.userData = { base: f.scale.clone(), life: 0, glow, seed: rand(0, 100) };   // unlit until the last balloon pops
     flames.push(f);
   }
-  candleLight = new THREE.PointLight(0xffa860, 0, 0, 2);   // just above the middle of the candles
-  candleLight.position.copy(flames.reduce((a, f) => a.add(f.position), new THREE.Vector3()).divideScalar(Math.max(flames.length, 1)))
-    .add(new THREE.Vector3(0, 0.06, 0));
+  candleLight = new THREE.PointLight(0xffa860, 0, 0, 2);
+  candleLight.position.set(0, 1.13, 0);
   cake.add(candleLight);
-  turntable.add(blob(PINK_CAKE ? 1.7 : 1.2));
+  turntable.add(blob(1.2));
   turntable.visible = false;
   world.add(turntable);
 }
@@ -1478,9 +1458,7 @@ function loop(now) {
 requestAnimationFrame(loop);
 
 try {
-  const [cakeGltf, decorLoaded] = await Promise.all([
-    load(PINK_CAKE ? 'assets/cake2.glb' : 'assets/cake.glb', 'cake'), load('assets/decor.glb', 'decor'),
-  ]);
+  const [cakeGltf, decorLoaded] = await Promise.all([load('assets/cake.glb', 'cake'), load('assets/decor.glb', 'decor')]);
   decorGltf = decorLoaded;
   setupCake(cakeGltf);
   setupDecor();
