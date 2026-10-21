@@ -1303,14 +1303,16 @@ async function startCake({ lit = false } = {}) {
 // ------------------------------------------------------------------ gifts
 const gifts = new THREE.Group();
 const giftItems = [];
-let giftBox, giftBusy = false;
+let giftBox, giftBusy = false, giftTextures = [];
 
 function setupGifts() {
   const portrait = innerWidth / innerHeight < 0.9;
   const layout = portrait
     ? [[-0.33, -0.2], [0.33, -0.2], [0, 0.38]]
     : [[-0.64, 0], [0, 0.12], [0.64, 0]];
-  CONFIG.gifts.slice(0, 3).forEach((content, i) => {
+  // the cards come out in config order whichever box she taps, so the coupon is always the last one
+  giftTextures = CONFIG.gifts.slice(0, 3).map((c) => emojiTexture(c.emoji));
+  giftTextures.forEach((_, i) => {
     const root = dreamGift(DREAMS[i]);   // every box gets its own materials, so fading one lid leaves the rest alone
     const scale = [0.4, 0.38, 0.42][i];
     root.position.set(layout[i][0], 0, layout[i][1]);
@@ -1320,17 +1322,18 @@ function setupGifts() {
     const lid = root.getObjectByName('DreamGift_Lid');
     // see-through from the start: shaders are compiled while loading, and an opaque one ignores opacity
     lid.traverse((o) => { if (o.isMesh) o.material.transparent = true; });
-    giftItems.push({ root, lid, content, scale, opened: false, seed: rand(0, 6) });
+    giftItems.push({ root, lid, content: null, scale, opened: false, seed: rand(0, 6) });
   });
   giftBox = new THREE.Box3().setFromObject(gifts);   // before the invisible helpers below are added
-  for (const it of giftItems) {
+  giftItems.forEach((it, i) => {
     it.hit = new THREE.Mesh(new THREE.BoxGeometry(1.3, 1.5, 1.3), new THREE.MeshBasicMaterial({ visible: false }));
     it.hit.position.y = 0.7;
-    it.spark = new THREE.Sprite(new THREE.SpriteMaterial({ map: emojiTexture(it.content.emoji), transparent: true, opacity: 0, depthWrite: false, toneMapped: false }));
+    // each starts with a different emoji (all three get uploaded with the room); openGift swaps in the right one
+    it.spark = new THREE.Sprite(new THREE.SpriteMaterial({ map: giftTextures[i], transparent: true, opacity: 0, depthWrite: false, toneMapped: false }));
     it.spark.scale.setScalar(0.001);
     it.spark.position.y = 0.5;
     it.root.add(it.hit, it.spark, blob(1.9));
-  }
+  });
   gifts.visible = false;
   world.add(gifts);
 }
@@ -1378,7 +1381,10 @@ async function openGift(it) {
   if (giftBusy) return;
   if (it.opened) { await showCard(it.content); return; }
   giftBusy = true;
+  const k = giftItems.filter((g) => g.opened).length;
   it.opened = true;
+  it.content = CONFIG.gifts[k];
+  it.spark.material.map = giftTextures[k];
   const { root, lid, spark, scale: s } = it;
   root.position.y = 0;
   root.rotation.z = 0;
