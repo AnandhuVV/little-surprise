@@ -2,9 +2,8 @@
 // {name} and {from} are replaced automatically anywhere they appear.
 
 export const CONFIG = {
-  name: "Sunshine",               // their name or a cute nickname
-  from: "me",                     // how you sign off
-  whatsappNumber: "",             // YOUR number for the reply button: country code + number, digits only (e.g. "97412345678")
+  name: "Undappi",                // their name or a cute nickname
+  from: "Kuttu",                  // how you sign off
 
   envelopeKicker: "psst… {name}",
   envelopeTitle: "you've got mail 💌",
@@ -64,7 +63,5 @@ export const CONFIG = {
   signoff: "— with lots of warmth, {from}",
 
   endingTitle: "Happy Birthday, {name} 💜",
-  endingPrompt: "If you feel like it… tell me what you wished for? ✨",
-  replyButton: "send my wish 💌",
-  replyText: "Okay okay, my birthday wish was… 🎂✨ ",
+  endingPrompt: "I hope today is every bit as lovely as you are ✨",
 };

@@ -13,8 +13,6 @@ const params = new URLSearchParams(location.search);
 
 document.querySelectorAll('[data-text]').forEach((el) => { el.textContent = fill(CONFIG[el.dataset.text]); });
 document.querySelectorAll('[data-from]').forEach((el) => { el.textContent = CONFIG.from; });
-const replyNumber = String(CONFIG.whatsappNumber || '').replace(/\D/g, '');
-$('#reply').href = `https://wa.me/${replyNumber}?text=${encodeURIComponent(fill(CONFIG.replyText))}`;
 
 // ------------------------------------------------------------------ tweens
 const ease = {
