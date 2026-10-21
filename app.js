@@ -498,6 +498,10 @@ const CAKE_LOOK = {
   C2_Heart: { roughness: 0.2, clearcoat: 1, clearcoatRoughness: 0.06 },
   C2_Pearl_Pink: CANDY,
   C2_Candle: { roughness: 0.35, clearcoat: 0.5 },
+  C2_Twist_Candle: { roughness: 0.3, clearcoat: 0.7, clearcoatRoughness: 0.15 },
+  C2_Candy: CANDY,
+  C2_Meringue: { roughness: 0.65, sheen: 0.5, sheenColor: 0xffffff },
+  C2_Sprinkles: { roughness: 0.35, clearcoat: 0.5 },
 };
 // two cake designs to choose from: ?cake=pink shows the pink fondant cake with chocolate icing
 const PINK_CAKE = params.get('cake') === 'pink';
@@ -519,7 +523,7 @@ function setupCake(gltf) {
   }
   turntable.add(cake);
   cakeBox = new THREE.Box3().setFromObject(turntable);
-  for (let i = 1; i <= 6; i++) {
+  for (let i = 1; i <= 12; i++) {   // the first cake has six candles, the pink one eight
     const f = cake.getObjectByName(`Flame_${i}`);
     if (!f) continue;
     f.traverse((o) => {
