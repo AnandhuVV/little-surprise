@@ -1498,22 +1498,45 @@ canvas.addEventListener('pointerup', (e) => {
 });
 
 // ------------------------------------------------------------------ polaroids
-function buildStack() {
+// Her photos sit in the (public) repo encrypted as photos/N.bin (12-byte IV, then AES-GCM ciphertext + tag), made by
+// private/seal_photos.mjs. The key comes only in her link (#k=…), and the part after # never reaches a server.
+const photoKey = (async () => {
+  try {
+    const k = new URLSearchParams(location.hash.slice(1)).get('k');
+    const raw = Uint8Array.from(atob(k.replace(/-/g, '+').replace(/_/g, '/')), (ch) => ch.charCodeAt(0));
+    return await crypto.subtle.importKey('raw', raw, 'AES-GCM', false, ['decrypt']);
+  } catch { return null; }   // no key (or no WebCrypto): the sealed photos are skipped
+})();
+
+async function photoURL(src) {
+  if (!src.endsWith('.bin')) return src;
+  const key = await photoKey;
+  if (!key) throw new Error('no photo key');
+  const data = new Uint8Array(await (await fetch(src)).arrayBuffer());
+  const plain = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: data.subarray(0, 12) }, key, data.subarray(12));
+  return URL.createObjectURL(new Blob([plain], { type: 'image/jpeg' }));
+}
+
+async function buildStack() {
   const stack = $('#stack');
-  [...CONFIG.photos].reverse().forEach((p) => {   // first photo ends up on top
+  const photos = (await photoKey) ? CONFIG.photos : CONFIG.photos.filter((p) => !p.src.endsWith('.bin'));
+  [...photos].reverse().forEach((p) => {   // first photo ends up on top
     const el = document.createElement('div');
     el.className = 'polaroid';
     el.style.setProperty('--r', `${rand(-7, 7).toFixed(1)}deg`);
     el.innerHTML = '<div class="pic"><img alt="" draggable="false"></div><p class="caption"></p>';
     const img = el.querySelector('img');
-    img.onerror = () => img.remove();
+    const drop = () => {   // a photo that won't load (or decrypt) leaves the pile instead of showing an empty frame
+      el.remove();
+      if (!stack.children.length) skipPhotos();
+    };
+    img.onerror = drop;
     if (p.focus) img.style.objectPosition = p.focus;
-    img.src = p.src;
+    photoURL(p.src).then((url) => { img.src = url; }, drop);
     el.querySelector('.caption').textContent = fill(p.caption);
     stack.appendChild(el);
   });
-
-  if (!CONFIG.photos.length) $('#toLetter').classList.remove('hidden');
+  if (!photos.length) skipPhotos();
 
   let card = null, sx = 0, sy = 0, dx = 0, dy = 0, t0 = 0;
   stack.addEventListener('pointerdown', (e) => {
@@ -1552,6 +1575,13 @@ function buildStack() {
       $('#toLetter').classList.remove('hidden');
     }, 650);
   }
+}
+
+let noPhotos = false;
+function skipPhotos() {   // nothing to show (say, a link without the key): the gifts lead straight to the letter
+  noPhotos = true;
+  $('#toPhotos').textContent = $('#toLetter').textContent;
+  $('#toLetter').classList.remove('hidden');
 }
 
 // ------------------------------------------------------------------ letter
@@ -1600,7 +1630,7 @@ function ending() {
 
 // ------------------------------------------------------------------ flow
 $('#toGifts').addEventListener('click', toGifts);
-$('#toPhotos').addEventListener('click', () => go('photos'));
+$('#toPhotos').addEventListener('click', () => (noPhotos ? typeLetter() : go('photos')));
 $('#toLetter').addEventListener('click', typeLetter);
 $('#toEnd').addEventListener('click', ending);
 $('#replay').addEventListener('click', () => location.reload());

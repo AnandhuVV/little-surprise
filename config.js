@@ -39,13 +39,17 @@ export const CONFIG = {
   ],
 
   photosTitle: "a few favourite pictures of you",
-  // her photos: put them in /photos as 1.jpg, 2.jpg… (any number; portrait shots fill the frame best).
+  // Her photos are private, so they're stored encrypted (photos/N.bin) and only open with the key in her link.
+  // To change them: put the originals in private/originals (1.jpg, 2.png…), run  python3 private/seal_photos.py
+  // then  node private/seal_photos.mjs , and keep one entry per photo here.
   // If a face gets cut off, add  focus: "top"  (or e.g. "50% 15%") to that photo to move the crop.
   photos: [
-    { src: "photos/1.jpg", caption: "that smile 🌸" },
-    { src: "photos/2.jpg", caption: "main character energy ✨" },
-    { src: "photos/3.jpg", caption: "a whole mood 💫" },
-    { src: "photos/4.jpg", caption: "effortlessly lovely 💜" },
+    { src: "photos/1.bin", caption: "that smile 🌸" },
+    { src: "photos/2.bin", caption: "the birthday girl 🎉" },
+    { src: "photos/3.bin", caption: "main character energy ✨" },
+    { src: "photos/4.bin", caption: "glowing, even at night 🌙", focus: "50% 0%" },
+    { src: "photos/5.bin", caption: "effortlessly lovely 💜" },
+    { src: "photos/6.bin", caption: "and that laugh 🤍" },
   ],
   photosDone: "here's to many more smiles 💜",   // shown once she's gone through them all
 
