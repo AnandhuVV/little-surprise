@@ -5,7 +5,7 @@ export const CONFIG = {
   name: "Undappi",                // their name or a cute nickname
   from: "Kuttu",                  // how you sign off
 
-  envelopeKicker: "psst… {name}",
+  envelopeKicker: "hey {name} ✨",
   envelopeTitle: "you've got mail 💌",
   envelopeCard: "today is all about you ✨",
 

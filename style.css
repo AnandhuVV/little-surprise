@@ -179,10 +179,11 @@ body[data-bg="dark"][data-scene="gifts"] .mute { background: rgba(255, 255, 255,
 }
 .title.big { font-size: clamp(2.5rem, 11vw, 3.8rem); }
 .kicker {
-  margin: 0;
+  margin: 0 0 -10px;
+  font-family: var(--hand);
   font-weight: 700;
-  font-size: 0.95rem;
-  letter-spacing: 0.14em;
+  font-size: 1.7rem;
+  line-height: 1.1;
   color: var(--lav-deep);
 }
 .hint {
