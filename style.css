@@ -436,8 +436,15 @@ body[data-bg="dark"][data-scene="gifts"] .mute { background: rgba(255, 255, 255,
   cursor: grab;
   will-change: transform;
 }
-.polaroid.fly { transition: transform 0.7s cubic-bezier(.3, .6, .4, 1), opacity 0.7s ease; }
 .polaroid.back { transition: transform 0.45s cubic-bezier(.3, 1.4, .5, 1); }
+/* swiped photos settle around the pile, small and tilted, behind the title, hint and button */
+.polaroid.scattered {
+  transition: transform 0.85s cubic-bezier(.2, .8, .25, 1), filter 0.85s ease;
+  filter: saturate(0.92) brightness(0.98);
+  pointer-events: none;
+}
+.polaroid.settled { z-index: -1; }
+#photos > :not(.stack) { position: relative; z-index: 1; }
 .polaroid .pic {
   width: 100%;
   aspect-ratio: 3 / 4;

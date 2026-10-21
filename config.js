@@ -2,7 +2,7 @@
 // {name} and {from} are replaced automatically anywhere they appear.
 
 export const CONFIG = {
-  name: "Undappi",                // their name or a cute nickname
+  name: "Anu",                    // their name or a cute nickname
   from: "Kuttu",                  // how you sign off
 
   envelopeKicker: "to, {name}",
@@ -15,8 +15,10 @@ export const CONFIG = {
   popMore1: "one more… 🎈",
 
   cakeTitle: "Happy Birthday, {name}!",
-  wishPrompt: "close your eyes, make a wish… then tap the cake to blow out the candles ✨",
-  afterWish: "I hope every single wish comes true 💜",
+  lightPrompt: "tap the cake to light your candles ✨",
+  wishPrompt: "now close your eyes, make a wish… then tap the cake 💜",
+  afterWish: "may every single wish find its way to you 💜",
+  afterWish2: "and may every moment, this year and always, stay lit ✨",
 
   giftsTitle: "I got you a few little things",
   gifts: [
@@ -62,6 +64,6 @@ export const CONFIG = {
   ],
   signoff: "Always, {from} 💜",
 
-  endingTitle: "Happy Birthday, {name} 💜",
+  endingTitle: "Happy Birthday, Undappi 💜",   // the nickname only here, on the last screen
   endingPrompt: "I hope today is every bit as lovely as you are ✨",
 };

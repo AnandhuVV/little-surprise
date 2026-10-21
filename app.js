@@ -122,19 +122,31 @@ const sky = (() => {
   return { draw };
 })();
 
-// ------------------------------------------------------------------ music box (Happy Birthday is public domain)
-const MELODY = [   // [beat, midi]
-  [0, 67], [0.75, 67], [1, 69], [2, 67], [3, 72], [4, 71],
-  [6, 67], [6.75, 67], [7, 69], [8, 67], [9, 74], [10, 72],
-  [12, 67], [12.75, 67], [13, 79], [14, 76], [15, 72], [16, 71], [17, 69],
-  [19, 77], [19.75, 77], [20, 76], [21, 72], [22, 74], [23, 72],
-];
-const C = [60, 67, 76], G = [55, 62, 71], F = [53, 60, 69];
-const CHORDS = [[1, C], [4, G], [7, G], [10, C], [13, C], [17, F], [20, C], [23, C]];
-const LOOP_BEATS = 30, BEAT = 0.5, VOLUME = 0.55;
+// ------------------------------------------------------------------ music
+// Two Debussy piano pieces, one after the other (~9.5 min before anything repeats). Both recordings are public domain,
+// from Wikimedia Commons: La plus que lente (played by "La Pianista", 2009) and Clair de lune (Laurens Goedhart, 2011).
+const TRACKS = ['assets/music/la-plus-que-lente.m4a', 'assets/music/clair-de-lune.m4a'];
+const VOLUME = 0.55;
+const KEY = [73, 75, 77, 80, 82, 85, 87, 89, 92, 94, 97];   // D♭ major pentatonic, so the chimes sit inside both pieces' keys
 
 class MusicBox {
-  constructor() { this.ctx = null; this.on = true; this.level = VOLUME; }
+  constructor() { this.ctx = null; this.on = true; this.level = VOLUME; this.track = 0; }
+
+  prepare() {   // starts downloading the first piece once the room has loaded, so it's ready when she opens the envelope
+    if (this.audio) return;
+    this.audio = new Audio();
+    this.audio.preload = 'auto';
+    this.audio.src = TRACKS[0];
+    this.audio.addEventListener('ended', () => {
+      this.track = (this.track + 1) % TRACKS.length;
+      this.audio.src = TRACKS[this.track];
+      this.play();
+    });
+  }
+
+  play() {
+    if (this.audio && !document.hidden) this.audio.play().catch(() => { /* blocked until her next tap: wake() retries */ });
+  }
 
   start() {
     if (this.ctx) { this.ctx.resume(); return; }
@@ -145,6 +157,18 @@ class MusicBox {
     this.master = c.createGain();
     this.master.gain.value = 0;
     this.master.connect(c.destination);
+    // the piano runs through the page's audio graph, so the dark room can duck it and the mute button covers it;
+    // a gentle compressor lifts the soft passages enough to carry on a phone speaker
+    this.prepare();
+    const piano = c.createMediaElementSource(this.audio), comp = c.createDynamicsCompressor(), lift = c.createGain();
+    comp.threshold.value = -36;
+    comp.knee.value = 12;
+    comp.ratio.value = 3;
+    comp.attack.value = 0.02;
+    comp.release.value = 0.4;
+    lift.gain.value = 2.4;
+    piano.connect(comp).connect(lift).connect(this.master);
+    this.play();
     this.sfx = c.createGain();   // the balloon pops: muted with the music, but never ducked
     this.sfx.gain.value = this.on ? 1 : 0;
     this.sfx.connect(c.destination);
@@ -158,13 +182,15 @@ class MusicBox {
     delay.connect(feedback).connect(delay);
     delay.connect(wet).connect(this.master);
     this.master.gain.setTargetAtTime(this.level, c.currentTime, 0.8);   // not a ramp: a ramp would override the dark room's duck
-    this.next = c.currentTime + 0.5;
-    this.schedule();
-    document.addEventListener('visibilitychange', () => (document.hidden ? c.suspend() : c.resume()));
+    document.addEventListener('visibilitychange', () => {
+      if (document.hidden) { this.audio.pause(); c.suspend(); } else { c.resume(); this.play(); }
+    });
   }
 
   wake() {   // if the phone suspended the audio while she was in another app, her next tap brings it back
-    if (this.ctx && this.ctx.state !== 'running' && !document.hidden) this.ctx.resume();
+    if (!this.ctx || document.hidden) return;
+    if (this.ctx.state !== 'running') this.ctx.resume();
+    if (this.audio.paused) this.play();
   }
 
   tone(midi, t, vel = 1, len = 2.2) {
@@ -184,25 +210,20 @@ class MusicBox {
     }
   }
 
-  schedule() {
-    const c = this.ctx;
-    if (this.next < c.currentTime) this.next = c.currentTime + 0.2;
-    const t0 = this.next;
-    for (const [b, m] of MELODY) this.tone(m + 12, t0 + b * BEAT);
-    for (const [b, chord] of CHORDS) chord.forEach((m, i) => this.tone(m, t0 + (b + i) * BEAT, 0.38, 1.6));
-    this.next = t0 + LOOP_BEATS * BEAT;
-    setTimeout(() => this.schedule(), Math.max(0, (this.next - c.currentTime - 1.5) * 1000));
-  }
-
   chime() {
     if (!this.ctx) return;
     const t = this.ctx.currentTime + 0.02;
-    [84, 88, 91, 96].forEach((m, i) => this.tone(m, t + i * 0.07, 0.7, 1.4));
+    [85, 89, 92, 97].forEach((m, i) => this.tone(m, t + i * 0.07, 0.7, 1.4));   // D♭ major, like the piano
   }
 
   blip() {
     if (!this.ctx) return;
-    this.tone(rand(86, 93) | 0, this.ctx.currentTime + 0.01, 0.5, 0.8);
+    this.tone(KEY[(rand(4, KEY.length) | 0)], this.ctx.currentTime + 0.01, 0.5, 0.8);
+  }
+
+  spark(i) {   // each candle catching: a rising note
+    if (!this.ctx) return;
+    this.tone(KEY[Math.min(3 + i, KEY.length - 1)], this.ctx.currentTime + 0.01, 0.45, 1.1);
   }
 
   noise(seconds) {
@@ -213,21 +234,6 @@ class MusicBox {
     const src = c.createBufferSource();
     src.buffer = buf;
     return src;
-  }
-
-  whoosh() {
-    if (!this.ctx) return;
-    const c = this.ctx, t = c.currentTime;
-    const src = this.noise(0.8), bp = c.createBiquadFilter(), g = c.createGain();
-    bp.type = 'bandpass';
-    bp.Q.value = 0.8;
-    bp.frequency.setValueAtTime(1400, t);
-    bp.frequency.exponentialRampToValueAtTime(300, t + 0.7);
-    g.gain.setValueAtTime(0, t);
-    g.gain.linearRampToValueAtTime(0.35, t + 0.08);
-    g.gain.exponentialRampToValueAtTime(0.001, t + 0.75);
-    src.connect(bp).connect(g).connect(this.master);
-    src.start(t);
   }
 
   pop() {   // a sharp latex snap plus a soft low thump; skips the ducked music level
@@ -565,7 +571,7 @@ function load(url, key) {
 // ------------------------------------------------------------------ cake
 let cake, cakeBox, candleLight, cakeView;
 const flames = [];
-let wished = false, cakeReadyAt = Infinity;
+let cakeReadyAt = Infinity;
 const turntable = new THREE.Group();   // stand + cake, slowly turning
 const STAND_H = 0.3;
 const CANDLE_MAX = 0.16;
@@ -608,7 +614,7 @@ function setupCake(gltf) {
     glow.position.copy(f.position).add(new THREE.Vector3(0, 0.024, 0));
     glow.scale.setScalar(0.2);
     cake.add(glow);
-    f.userData = { base: f.scale.clone(), life: 0, glow, seed: rand(0, 100) };   // unlit until the last balloon pops
+    f.userData = { base: f.scale.clone(), life: 0, flare: 0, glow, seed: rand(0, 100) };   // unlit until she lights them
     flames.push(f);
   }
   // in the world, not on the cake: hiding the cake would hide the light too, and a change in the number of lights
@@ -624,71 +630,109 @@ function setupCake(gltf) {
 function animateFlames(t) {
   let total = 0;
   for (const f of flames) {
-    const { base, life, glow, seed } = f.userData;
+    const { base, life, flare, glow, seed } = f.userData;
     const k = 1 + 0.08 * Math.sin(t * 13 + seed) + 0.05 * Math.sin(t * 27.3 + seed * 2);
-    f.scale.set(base.x * life * (1.04 - 0.04 * k), base.y * life * k, base.z * life * (1.04 - 0.04 * k));
+    const s = life * (1 + flare);
+    f.scale.set(base.x * s * (1.04 - 0.04 * k), base.y * s * k, base.z * s * (1.04 - 0.04 * k));
     f.visible = life > 0.01;
     glow.visible = f.visible;
+    glow.scale.setScalar(0.2 * (1 + flare * 1.5));
     glow.material.opacity = life * (0.8 + 0.2 * Math.sin(t * 17 + seed));
-    total += life * k;
+    total += s * k;
   }
-  if (candleLight) candleLight.intensity = CANDLE_MAX * (total / Math.max(flames.length, 1));
+  // the light stays with the cake: none on the gifts once it has gone
+  if (candleLight) candleLight.intensity = turntable.visible ? CANDLE_MAX * (total / Math.max(flames.length, 1)) : 0;
 }
 
-const puffs = [];
-function puff(f) {
-  const p = f.getWorldPosition(new THREE.Vector3()).add(new THREE.Vector3(0, 0.015, 0));
-  for (let i = 0; i < 7; i++) {
-    const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: softTex, color: 0xaea8c2, transparent: true, opacity: 0, depthWrite: false }));
+// sparks when a candle catches, and the wishes that drift up from the flames
+const glints = [];
+function glint(f, kind) {
+  const p = f.getWorldPosition(new THREE.Vector3()).add(new THREE.Vector3(0, 0.03, 0));
+  const wish = kind === 'wish';
+  for (let i = 0; i < (wish ? 5 : 7); i++) {
+    const s = new THREE.Sprite(new THREE.SpriteMaterial({
+      map: softTex, color: wish ? (i % 2 ? 0xffd38a : 0xeadfff) : 0xffc070,
+      blending: THREE.AdditiveBlending, transparent: true, opacity: 0, depthWrite: false, toneMapped: false,
+    }));
     s.position.copy(p);
     world.add(s);
-    puffs.push({ s, t: -i * 0.11, life: 2.2, vx: rand(-0.025, 0.025), vz: rand(-0.025, 0.025) });
+    glints.push(wish
+      ? { s, wish, t: -i * 0.4 - rand(0, 0.35), life: rand(3.6, 4.6), size: rand(0.13, 0.2), seed: rand(0, 6),
+          v: new THREE.Vector3(rand(-0.12, 0.12), rand(0.38, 0.52), rand(-0.1, 0.1)) }
+      : { s, wish, t: 0, life: rand(0.35, 0.55), size: rand(0.015, 0.03), seed: 0,
+          v: new THREE.Vector3(rand(-0.5, 0.5), rand(0.3, 0.9), rand(-0.5, 0.5)) });
   }
 }
-function stepPuffs(dt) {
-  for (let i = puffs.length - 1; i >= 0; i--) {
-    const q = puffs[i];
-    q.t += dt;
-    if (q.t < 0) continue;
-    const k = q.t / q.life;
+function stepGlints(t, dt) {
+  for (let i = glints.length - 1; i >= 0; i--) {
+    const g = glints[i];
+    g.t += dt;
+    if (g.t < 0) continue;
+    const k = g.t / g.life;
     if (k >= 1) {
-      world.remove(q.s);
-      q.s.material.dispose();
-      puffs.splice(i, 1);
+      world.remove(g.s);
+      g.s.material.dispose();
+      glints.splice(i, 1);
       continue;
     }
-    q.s.position.x += (q.vx + Math.sin(q.t * 3) * 0.01) * dt;
-    q.s.position.z += q.vz * dt;
-    q.s.position.y += 0.1 * dt;
-    q.s.scale.setScalar(0.025 + k * 0.13);
-    q.s.material.opacity = 0.45 * Math.sin(Math.PI * Math.min(k * 1.6, 1)) * (1 - k);
+    if (g.wish) {   // a little light rising and swaying, twinkling as it goes
+      g.s.position.addScaledVector(g.v, dt);
+      g.s.position.x += Math.sin(t * 1.6 + g.seed) * 0.05 * dt;
+      g.s.scale.setScalar(g.size * (1 + 0.25 * Math.sin(t * 5 + g.seed)));
+      g.s.material.opacity = Math.min(1, k * 6) * (1 - k) ** 1.5;
+    } else {
+      g.v.y -= 1.6 * dt;
+      g.s.position.addScaledVector(g.v, dt);
+      g.s.scale.setScalar(g.size * (1 - k));
+      g.s.material.opacity = 1 - k;
+    }
   }
 }
 
-async function blowOut() {
-  if (wished) return;
-  wished = true;
-  music.whoosh();
-  const order = flames.map((_, i) => i).sort(() => Math.random() - 0.5);
-  order.forEach((i, k) => {
-    const f = flames[i];
-    tween(260, (e) => { f.userData.life = 1 - e; }, { delay: k * 90, easing: ease.inCubic }).then(() => puff(f));
-  });
-  await sleep(order.length * 90 + 400);
+// She lights her own candles, makes a wish, and sends it up; the flames are never blown out.
+let cakeStep = 'wait';   // 'light' → tap lights the candles, 'wish' → tap sends her wish, then 'done'
+function cakeTap() {
+  if (performance.now() < cakeReadyAt) return;
+  if (cakeStep === 'light') lightCandles();
+  else if (cakeStep === 'wish') sendWish();
+}
+
+async function lightCandles() {
+  cakeStep = 'busy';
+  for (const [k, f] of flames.entries()) {
+    music.spark(k);
+    glint(f, 'spark');
+    tween(380, (e) => { f.userData.life = e; }, { easing: ease.outBack });
+    await sleep(280);
+  }
+  await sleep(600);
+  swapText($('#cakeHint'), fill(CONFIG.wishPrompt));
+  cakeReadyAt = performance.now() + 1500;   // a double tap shouldn't send the wish before she's made it
+  cakeStep = 'wish';
+}
+
+async function sendWish() {
+  cakeStep = 'busy';
   music.chime();
-  fire({ particleCount: 110, spread: 100, startVelocity: 42, origin: { y: 0.55 }, scalar: 0.95 });
-  fire({ particleCount: 50, angle: 60, spread: 60, origin: { x: 0, y: 0.75 } });
-  fire({ particleCount: 50, angle: 120, spread: 60, origin: { x: 1, y: 0.75 } });
+  for (const f of flames) {
+    glint(f, 'wish');
+    tween(1400, (e) => { f.userData.flare = 0.45 * Math.sin(e * Math.PI); });
+  }
+  await sleep(1800);   // the wishes have the moment to themselves before a softer burst of confetti
+  fire({ particleCount: 60, spread: 90, startVelocity: 34, origin: { y: 0.6 }, scalar: 0.85 });
   swapText($('#cakeHint'), fill(CONFIG.afterWish));
+  await sleep(3600);
+  swapText($('#cakeHint'), fill(CONFIG.afterWish2));
   await sleep(1800);
   $('#toGifts').classList.remove('hidden');
+  cakeStep = 'done';
 }
 
 // ------------------------------------------------------------------ party decorations (modelled in Blender, decor.glb)
 const decor = new THREE.Group();
 const balloons = [], floaters = [], pennants = [], roomCandles = [];
 const votiveGlass = new Set();
-let decorGltf, falling, sparkles, fairy, rice;
+let decorGltf, falling, sparkles, fairy, rice, nameSign;
 const UP = new THREE.Vector3(0, 1, 0);
 const WARM = new THREE.Color(1, 0.8, 0.5), BULB_OFF = new THREE.Color(0.012, 0.009, 0.009);
 const CONFETTI = ['#a98bff', '#c9b3ff', '#8c66dc', '#ff9cc8', '#f6c34e', '#7fa8ff', '#ffffff'];
@@ -1011,6 +1055,7 @@ function setupDecor() {
     place(make(name, jar), pos, rot).traverse((o) => { if (o.isMesh && o.material.name === 'Jar_Glass') o.castShadow = false; });
   }
   place(saturate(make('FlowerPot'), 1.7), [0.8, 0, 0.32], -0.4, 1.05);
+  nameSign = place(make('NameSign'), [0, 0, 0.76], 0);   // her name in gold script on a little stand, at the foot of the cake
   const shells = ['#c4a3ff', '#ff9cc8', '#a6d8ff', '#ffe066'];
   shells.slice(0, 3).forEach((c, i) => {
     place(make('Macaron', { Macaron_Shell: { color: c, roughness: 0.6, sheen: 0.7, sheenColor: 0xffffff } }),
@@ -1029,17 +1074,18 @@ function setupDecor() {
 
   // the melted candles that light the room: clusters front-left, front-right, beside the stand and behind it
   const CREAM = '#fff1de', BLUSH = '#ffd3dc', LILAC = '#e6d8ff';
-  roomCandle('Candle_L', [-0.36, 1.0], CREAM, 'left');
-  roomCandle('Candle_S', [-0.22, 1.13], BLUSH, 'left');
+  // (the front ones stand clear of her name sign)
+  roomCandle('Candle_L', [-0.52, 1.02], CREAM, 'left');
+  roomCandle('Candle_S', [-0.3, 1.27], BLUSH, 'left');
   roomCandle('Votive', [-0.47, 1.16], '#c9a8ff', 'left');
   roomCandle('Candle_M', [-0.6, 0.6], BLUSH, 'left');
   roomCandle('Candle_Puddle', [-0.96, 0.78], CREAM, 'left');
-  roomCandle('Candle_M', [0.35, 1.02], LILAC, 'right');
+  roomCandle('Candle_M', [0.52, 1.04], LILAC, 'right');
   roomCandle('Votive', [0.21, 1.15], '#ffbe7a', 'right');
   roomCandle('Candle_S', [0.47, 1.16], CREAM, 'right');
   roomCandle('Candle_L', [0.57, 0.58], CREAM, 'right');
   roomCandle('Votive', [0.98, 0.68], '#ffa6cf', 'right');
-  roomCandle('Candle_Puddle', [-0.04, 1.12], BLUSH, 'right');
+  roomCandle('Candle_Puddle', [-0.13, 1.21], BLUSH, 'right');
   roomCandle('Candle_L', [-0.5, -0.95], CREAM, 'back');
   roomCandle('Candle_M', [0.52, -1.0], BLUSH, 'back');
   roomCandle('Votive', [0.05, -1.12], '#ffbe7a', 'back');
@@ -1256,11 +1302,8 @@ async function lightStage(n, instant = false) {
     switchOn(lamps.moon, { ms: instant ? 1 : 1500, to: 0.5 });
     tween(instant ? 1 : 1500, (e) => { room.env = room.envMax * 0.4 * e; });
     if (!instant) swapText(hint, fill(CONFIG.popMore1));
-  } else if (n === 3) {      // the cake: candles ignite, the spotlight fades up, the room warms
+  } else if (n === 3) {      // the cake: the spotlight fades up and the room warms (its candles wait for her)
     setBlackout(0);
-    flames.forEach((f, i) => {
-      tween(instant ? 1 : 380, (e) => { f.userData.life = e; }, { delay: instant ? 0 : 300 + i * 160, easing: ease.outBack });
-    });
     switchOn(lamps.spot, { delay: instant ? 0 : 900, ms: instant ? 1 : 1600 });
     switchOn(lamps.moon, { ms: instant ? 1 : 2000 });
     for (const k of ['sun', 'rim', 'party', 'fill', 'rimL', 'rimR']) if (lamps[k]) switchOn(lamps[k], { delay: instant ? 0 : 600, ms: instant ? 1 : 2000 });
@@ -1268,6 +1311,7 @@ async function lightStage(n, instant = false) {
     tween(instant ? 1 : 2500, (e) => { sparkles.level = e; }, { delay: instant ? 0 : 1200 });
     music.duck(VOLUME);
     controls.enabled = true;
+    cakeStep = 'light';
     if (instant) {
       hint.classList.add('hidden');
       $('#cake .top').classList.remove('hidden');
@@ -1325,7 +1369,7 @@ function setupGifts() {
     const lid = root.getObjectByName('DreamGift_Lid');
     // see-through from the start: shaders are compiled while loading, and an opaque one ignores opacity
     lid.traverse((o) => { if (o.isMesh) o.material.transparent = true; });
-    giftItems.push({ root, lid, content: null, scale, opened: false, seed: rand(0, 6) });
+    giftItems.push({ root, lid, content: null, scale, opened: false, seed: rand(0, 6), turn: i });
   });
   giftBox = new THREE.Box3().setFromObject(gifts);   // before the invisible helpers below are added
   giftItems.forEach((it, i) => {
@@ -1341,11 +1385,17 @@ function setupGifts() {
   world.add(gifts);
 }
 
+// now and then a closed box rattles, as if what's inside wants out: one box at a time, so the ones to tap stand out
+// from the still boxes around the room
+const RATTLE_EVERY = 4.5, RATTLE_LEN = 0.75;
 function animateGifts(t) {
   for (const it of giftItems) {
     if (!it.opened) {
-      it.root.position.y = Math.max(0, Math.sin(t * 2.2 + it.seed)) * 0.035;
-      it.root.rotation.z = Math.sin(t * 1.7 + it.seed) * 0.03;
+      const k = ((t + it.turn * RATTLE_EVERY / 3) % RATTLE_EVERY) / RATTLE_LEN;
+      const env = k < 1 ? Math.sin(k * Math.PI) : 0;
+      it.root.rotation.z = Math.sin(k * Math.PI * 7) * 0.05 * env;
+      it.root.position.y = Math.abs(Math.sin(k * Math.PI * 3.5)) * 0.04 * env;
+      it.lid.position.y = 0.8 + Math.abs(Math.sin(k * Math.PI * 5)) * 0.07 * env;   // the lid knocks up and down
     } else if (it.spark.userData.up) {
       it.spark.position.y = 1.85 + Math.sin(t * 2 + it.seed) * 0.06;
     }
@@ -1355,8 +1405,11 @@ function animateGifts(t) {
 async function toGifts() {
   $('#toGifts').classList.add('hidden');
   controls.enabled = false;
-  await tween(650, (e) => turntable.scale.setScalar(Math.max(1 - e, 0.001)), { easing: ease.inBack });
-  turntable.visible = false;
+  await tween(650, (e) => {   // her name leaves with the cake (it would stand right in front of the gifts)
+    turntable.scale.setScalar(Math.max(1 - e, 0.001));
+    nameSign.scale.setScalar(Math.max(1 - e, 0.001));
+  }, { easing: ease.inBack });
+  turntable.visible = nameSign.visible = false;
   go('gifts');
   gifts.visible = true;
   const from = { pos: camera.position.clone(), target: controls.target.clone(), shift: shiftY };
@@ -1488,7 +1541,7 @@ canvas.addEventListener('pointerup', (e) => {
   const tap = Math.hypot(e.clientX - down.x, e.clientY - down.y) < 10 && performance.now() - down.t < 450;
   down = null;
   if (!tap) return;
-  if (scene === 'cake' && performance.now() > cakeReadyAt) blowOut();
+  if (scene === 'cake') cakeTap();
   else if (scene === 'gifts') {
     const it = pickGift(e.clientX, e.clientY);
     if (it) openGift(it);
@@ -1538,7 +1591,7 @@ async function buildStack() {
 
   let card = null, sx = 0, sy = 0, dx = 0, dy = 0, t0 = 0;
   stack.addEventListener('pointerdown', (e) => {
-    card = [...stack.querySelectorAll('.polaroid:not(.fly)')].pop();   // the top card, not one still flying away
+    card = [...stack.querySelectorAll('.polaroid:not(.scattered)')].pop();   // the top card of the pile
     if (!card) return;
     card.classList.remove('back');
     sx = e.clientX; sy = e.clientY; dx = dy = 0; t0 = performance.now();
@@ -1560,15 +1613,28 @@ async function buildStack() {
   stack.addEventListener('pointerup', release);
   stack.addEventListener('pointercancel', release);
 
+  // a swiped photo doesn't leave: it shrinks into the background around the pile, roughly the way it was swiped,
+  // until they're all scattered behind the text like cards on a table
+  // screen fractions, kept clear of the hint and button that appear at the bottom
+  const SPOTS = [[0.17, 0.25], [0.83, 0.23], [0.13, 0.49], [0.87, 0.51], [0.3, 0.64], [0.7, 0.66]];
+  const taken = [];
   function fling(c, ux, uy) {
-    const D = Math.max(innerWidth, innerHeight) * 1.1;
-    c.classList.add('fly');
-    c.style.transform = `translate(${ux * D}px, ${uy * D}px) rotate(${ux * 45}deg)`;
-    c.style.opacity = '0';
+    const r = stack.getBoundingClientRect(), cx = r.left + r.width / 2, cy = r.top + r.height / 2;
+    const spread = Math.min(1, 760 / innerWidth);   // wide screens keep the photos near the pile
+    const spots = SPOTS.map(([fx, fy], i) => ({ i, x: (0.5 + (fx - 0.5) * spread) * innerWidth - cx, y: fy * innerHeight - cy }));
+    const free = spots.filter((s) => !taken.includes(s.i));
+    const pick = (free.length ? free : spots).reduce((best, s) => {   // the free spot most in the swipe's direction
+      const score = (s.x * ux + s.y * uy) / Math.hypot(s.x, s.y);
+      return score > best.score ? { s, score } : best;
+    }, { s: null, score: -Infinity }).s;
+    taken.push(pick.i);
+    const jitter = free.length ? 0 : rand(-24, 24);   // more photos than spots: overlap a little
+    c.classList.add('scattered');
+    c.style.transform = `translate(${pick.x + jitter}px, ${pick.y + jitter}px) rotate(${rand(-16, 16).toFixed(1)}deg) scale(0.42)`;
     music.blip();
+    setTimeout(() => c.classList.add('settled'), 450);   // under the rest of the pile once it has flown clear
+    if (stack.querySelector('.polaroid:not(.scattered)')) return;
     setTimeout(() => {
-      c.remove();
-      if (stack.children.length) return;
       swapText($('#photoHint'), fill(CONFIG.photosDone));
       $('#toLetter').classList.remove('hidden');
     }, 650);
@@ -1674,7 +1740,7 @@ function loop(now) {
   animateGifts(t);
   animateDecor(t, dt);
   animatePopBalloons(t, dt);
-  stepPuffs(dt);
+  stepGlints(t, dt);
   if (turntable.visible) turntable.rotation.y += dt * 0.16;
   if (controls.enabled) controls.update();
   if (closeCard && now - cardShownAt > 450) return;   // once a card covers the room, stop redrawing it under the blur
@@ -1709,14 +1775,16 @@ try {
   throw err;
 }
 
+music.prepare();
+
 // ?scene=cake|lit|gifts|photos|letter|end jumps straight to a part (handy for previewing)
 const jump = params.get('scene');
 if (jump === 'cake') startCake();
 else if (jump === 'lit') startCake({ lit: true });
-else if (jump === 'gifts') { startCake({ lit: true }); wished = true; flames.forEach((f) => { f.userData.life = 0; }); toGifts(); }
+else if (jump === 'gifts') { startCake({ lit: true }); cakeStep = 'done'; flames.forEach((f) => { f.userData.life = 1; }); toGifts(); }
 else if (jump === 'photos') go('photos');
 else if (jump === 'letter') typeLetter();
 else if (jump === 'end') ending();
 else go('intro');
 
-window.surprise = { blowOut, toGifts, openGift: (i) => openGift(giftItems[i]), pop: (i) => pop(popBalloons[i]), go };
+window.surprise = { music, gifts: giftItems, light: lightCandles, wish: sendWish, toGifts, openGift: (i) => openGift(giftItems[i]), pop: (i) => pop(popBalloons[i]), go };
