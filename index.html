@@ -13,15 +13,20 @@
   <meta property="og:type" content="website">
   <meta property="og:url" content="https://AnandhuVV.github.io/little-surprise/">
   <meta name="theme-color" content="#ffdcea">
+  <!-- claims dark support so Samsung Internet / Chrome don't force-darken the pastel pages (style.css keeps them light) -->
+  <meta name="color-scheme" content="light dark">
+  <style>html { background: #ffe3ee; }</style><!-- pink from the first frame, not the browser's dark blank page -->
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎂</text></svg>">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Caveat:wght@500;700&family=Quicksand:wght@500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="style.css">
-  <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.3/dist/confetti.browser.min.js"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.3/dist/confetti.browser.min.js"></script>
   <script>
     // if anything fails to load (very old in-app browser, no WebGL), say so instead of spinning forever
-    addEventListener('error', () => {
+    // (not for an unresolved "three": browsers without import maps report that, then es-module-shims loads it fine)
+    addEventListener('error', (e) => {
+      if (/specifier/i.test(e.message || '')) return;
       const hint = document.querySelector('#loading.active .hint');
       if (hint) hint.textContent = 'hmm, this browser is being shy. try opening the link in Safari or Chrome 💗';
     });
@@ -106,6 +111,9 @@
     <button id="replay" class="btn ghost">watch again ↺</button>
     <p class="made">made with 💗 by <span data-from></span></p>
   </section>
+
+  <p id="toast" class="toast hidden" role="status"></p>
+  <div id="rotate"><div><span class="rotate-phone">📱</span><p>turn your phone upright 🌸</p></div></div>
 
   <div id="card" class="modal hidden" role="dialog" aria-modal="true">
     <div class="card">

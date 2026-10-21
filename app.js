@@ -41,9 +41,19 @@ function stepTweens(now) {
 let scene = 'loading';
 function go(id) {
   $('#' + scene).classList.remove('active');
-  $('#' + id).classList.add('active');
+  const el = $('#' + id);
+  el.classList.add('active', 'arriving');
+  setTimeout(() => el.classList.remove('arriving'), 900);
   document.body.dataset.scene = id;
   scene = id;
+  setTheme();
+}
+// Android tints the browser's bar with theme-color: pink on the pastel pages, the room's colour (or black) in the 3D party
+let blackout = 1;
+function setTheme() {
+  const inRoom = scene === 'cake' || scene === 'gifts';
+  const color = inRoom ? '#' + new THREE.Color(BG.theme).lerp(new THREE.Color(0), blackout).getHexString() : '#ffdcea';
+  document.querySelector('meta[name="theme-color"]').content = color;
 }
 function swapText(el, text) {
   el.classList.add('swap');
@@ -132,10 +142,14 @@ class MusicBox {
     if (this.ctx) { this.ctx.resume(); return; }
     const AC = window.AudioContext || window.webkitAudioContext;
     if (!AC) return;
+    if (navigator.audioSession) navigator.audioSession.type = 'playback';   // iPhones: play through the silent switch, as Android does
     const c = (this.ctx = new AC());
     this.master = c.createGain();
     this.master.gain.value = 0;
     this.master.connect(c.destination);
+    this.sfx = c.createGain();   // the balloon pops: muted with the music, but never ducked
+    this.sfx.gain.value = this.on ? 1 : 0;
+    this.sfx.connect(c.destination);
     this.bus = c.createGain();
     const delay = c.createDelay(1), feedback = c.createGain(), wet = c.createGain();
     delay.delayTime.value = 0.33;
@@ -145,10 +159,14 @@ class MusicBox {
     this.bus.connect(delay);
     delay.connect(feedback).connect(delay);
     delay.connect(wet).connect(this.master);
-    this.master.gain.linearRampToValueAtTime(this.level, c.currentTime + 2.5);
+    this.master.gain.setTargetAtTime(this.level, c.currentTime, 0.8);   // not a ramp: a ramp would override the dark room's duck
     this.next = c.currentTime + 0.5;
     this.schedule();
     document.addEventListener('visibilitychange', () => (document.hidden ? c.suspend() : c.resume()));
+  }
+
+  wake() {   // if the phone suspended the audio while she was in another app, her next tap brings it back
+    if (this.ctx && this.ctx.state !== 'running' && !document.hidden) this.ctx.resume();
   }
 
   tone(midi, t, vel = 1, len = 2.2) {
@@ -222,14 +240,14 @@ class MusicBox {
     hp.frequency.value = 900;
     g.gain.setValueAtTime(0.9, t);
     g.gain.exponentialRampToValueAtTime(0.001, t + 0.12);
-    src.connect(hp).connect(g).connect(c.destination);
+    src.connect(hp).connect(g).connect(this.sfx);
     src.start(t);
     const o = c.createOscillator(), og = c.createGain();
     o.frequency.setValueAtTime(160, t);
     o.frequency.exponentialRampToValueAtTime(55, t + 0.1);
     og.gain.setValueAtTime(0.5, t);
     og.gain.exponentialRampToValueAtTime(0.001, t + 0.12);
-    o.connect(og).connect(c.destination);
+    o.connect(og).connect(this.sfx);
     o.start(t);
     o.stop(t + 0.15);
   }
@@ -241,12 +259,19 @@ class MusicBox {
 
   toggle() {
     this.on = !this.on;
-    if (this.ctx) this.master.gain.setTargetAtTime(this.on ? this.level : 0, this.ctx.currentTime, 0.15);
+    if (this.ctx) {
+      this.master.gain.setTargetAtTime(this.on ? this.level : 0, this.ctx.currentTime, 0.15);
+      this.sfx.gain.setTargetAtTime(this.on ? 1 : 0, this.ctx.currentTime, 0.05);
+    }
     return this.on;
   }
 }
 const music = new MusicBox();
-$('#mute').addEventListener('click', () => { $('#mute').textContent = music.toggle() ? '🔊' : '🔈'; });
+$('#mute').addEventListener('click', () => {
+  const on = music.toggle();
+  $('#mute').textContent = on ? '🔊' : '🔇';
+  $('#mute').setAttribute('aria-label', on ? 'Mute music' : 'Play music');
+});
 
 // ------------------------------------------------------------------ three.js stage (a dark room lit by candles and fairy lights)
 const canvas = $('#stage');
@@ -259,26 +284,36 @@ renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
 const world = new THREE.Scene();
 const pmrem = new THREE.PMREMGenerator(renderer);
-world.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+let envTarget = pmrem.fromScene(new RoomEnvironment(), 0.04);
+world.environment = envTarget.texture;
 world.environmentIntensity = 0;
+// phones can drop the GPU context while she's in another app; three.js restores everything except this map,
+// which only ever existed on the GPU
+canvas.addEventListener('webglcontextrestored', () => {
+  envTarget.dispose();
+  envTarget = pmrem.fromScene(new RoomEnvironment(), 0.04);
+  world.environment = envTarget.texture;
+});
 
 // The room's backdrop. Neither has a visible floor: the party stands on the page and only its shadows show.
 // dark (default): a deep berry room lit by the candles, fairy lights and a spotlight on the cake, for contrast.
 // pastel (?bg=pastel): the light pink page itself, sunlit, with soft pink shadows.
 // Both start black; the balloon pops reveal them.
+// exposure and cakeEnv keep the white icing from burning out: the dark room's spotlit cake needs less of both.
 const BACKDROPS = {
   dark: {
     fog: 0x2c0f28, shadow: [0x000000, 0.35], blob: [0x12060f, 0.4], moon: [0xd9ccff, 0x3a2038, 0.7], envMax: 0.25,
-    blackout: [0.7, 0.35], spot: 30, party: 1.1, decorEnv: 0.5,
+    blackout: [0.7, 0.35], spot: 16, party: 1.1, decorEnv: 0.5, exposure: 0.75, cakeEnv: 0.45, theme: '#250d22',
   },
   pastel: {
     fog: null, shadow: [0xa8436f, 0.16], blob: [0x9b3d66, 0.22], moon: [0xfff2f6, 0xffc9dc, 0.7], envMax: 0.75,
-    blackout: [0.85, 0.6], spot: 0, sun: 2.0, rim: 0.9,
+    blackout: [0.85, 0.6], spot: 0, sun: 2.0, rim: 0.9, exposure: 1, cakeEnv: 0.8, theme: '#ffdcea',
   },
 };
 const BG_NAME = params.get('bg') in BACKDROPS ? params.get('bg') : 'dark';
 const BG = BACKDROPS[BG_NAME];
 document.body.dataset.bg = BG_NAME;
+renderer.toneMappingExposure = BG.exposure;
 world.fog = BG.fog ? new THREE.Fog(BG.fog, 7.5, 15) : null;
 
 const camera = new THREE.PerspectiveCamera(30, 1, 0.05, 40);
@@ -307,8 +342,8 @@ if (BG.party) {   // a soft white light over the whole party, so the decorations
 }
 if (BG.spot) {   // the rest of the cake's studio lights from the Blender scene, in narrow cones that only reach the cake:
   // a cool fill from the front right and pink rims from behind on either side
-  for (const [name, color, max, pos] of [['fill', 0xeef2ff, 8, [1.8, 1.4, 2.3]], ['rimL', 0xffe6f0, 10, [-1.7, 1.6, -1.9]],
-    ['rimR', 0xffe6f0, 10, [1.7, 1.6, -1.9]]]) {
+  for (const [name, color, max, pos] of [['fill', 0xeef2ff, 4, [1.8, 1.4, 2.3]], ['rimL', 0xffe6f0, 6, [-1.7, 1.6, -1.9]],
+    ['rimR', 0xffe6f0, 6, [1.7, 1.6, -1.9]]]) {
     const s = lamp(name, new THREE.SpotLight(color, 0, 0, 0.34, 0.8, 2), max);
     s.position.set(...pos);
     s.target = spot.target;
@@ -339,6 +374,7 @@ function updateLamps(t) {
   const lit = room.env / room.envMax;
   world.fog?.color.setRGB(0, 0, 0).lerp(fogLit, lit);   // fog glows even unlit, so it rises with the room
   for (const m of blobLooks) m.opacity = BG.blob[1] * lit;
+  for (const m of starLooks) m.emissiveIntensity = 0.8 * lit;
   floor.material.opacity = BG.shadow[1] * lit;   // shadow maps are drawn even with the lights off
 }
 
@@ -458,7 +494,7 @@ Object.assign(controls, {
 });
 
 // Frame a box so it fits between the title and the button, on tall phones and wide screens alike.
-let framed = null;
+let framed = null, shiftY = 0;
 function framing(box, elevDeg, azimuth = 0, marginX = 1.2) {
   const size = box.getSize(new THREE.Vector3()), target = box.getCenter(new THREE.Vector3());
   const e = THREE.MathUtils.degToRad(elevDeg);
@@ -470,20 +506,44 @@ function framing(box, elevDeg, azimuth = 0, marginX = 1.2) {
   const dir = new THREE.Vector3(Math.sin(azimuth) * Math.cos(e), Math.sin(e), Math.cos(azimuth) * Math.cos(e));
   return { target, pos: target.clone().addScaledVector(dir, dist) };
 }
-function frame(box, elevDeg, marginX = 1.2) {
-  framed = { box, elevDeg, marginX };
-  const f = framing(box, elevDeg, controls.getAzimuthalAngle(), marginX);
+function setShift(px) {   // moves the whole picture down the screen
+  shiftY = px;
+  camera.setViewOffset(innerWidth, innerHeight, 0, -px, innerWidth, innerHeight);
+  camera.updateProjectionMatrix();
+}
+const screenY = (v) => ((1 - v.clone().project(camera).y) / 2) * innerHeight;
+// view: { box, elevDeg, marginX, azimuth (default: wherever she has turned the cake to), roof, sceneEl }
+// roof: a point that has to show below the scene's title block (the bunting), while the box's front foot stays above
+// its button. Short screens (Samsung Internet's two toolbars, a long name) move the party down or step back for it.
+function frame(view) {
+  framed = view;
+  const { box, elevDeg, marginX, roof, sceneEl } = view;
+  const f = framing(box, elevDeg, view.azimuth ?? controls.getAzimuthalAngle(), marginX);
   camera.position.copy(f.pos);
   controls.target.copy(f.target);
   camera.lookAt(f.target);
+  setShift(innerHeight * 0.06);   // nudge the 3D content below the title
+  if (!roof) return;
+  const top = sceneEl.querySelector('.top'), bottom = sceneEl.querySelector('.bottom');
+  const minY = top.offsetTop + top.offsetHeight + 6, maxY = bottom.offsetTop;
+  if (maxY - minY < innerHeight * 0.35) return;   // a phone on its side: no room to be clever
+  const foot = new THREE.Vector3(f.target.x, box.min.y, box.max.z);
+  camera.updateMatrixWorld();
+  if (screenY(roof) >= minY) return;   // tall screens: already clear
+  for (let i = 0; i < 3; i++) {   // too tall for the gap: step back until it fits
+    const span = screenY(foot) - screenY(roof);
+    if (span <= maxY - minY) break;
+    camera.position.lerp(f.target, 1 - (span / (maxY - minY)) * 1.02);
+    camera.updateMatrixWorld();
+  }
+  setShift(shiftY + Math.max(0, Math.min(minY - screenY(roof), maxY - screenY(foot))));
 }
 function resize() {
   const w = innerWidth, h = innerHeight;
   renderer.setSize(w, h, false);
   camera.aspect = w / h;
-  camera.setViewOffset(w, h, 0, -h * 0.06, w, h);   // nudge the 3D content below the title
-  camera.updateProjectionMatrix();
-  if (framed) frame(framed.box, framed.elevDeg, framed.marginX);
+  setShift(h * 0.06);
+  if (framed) frame(framed);
 }
 addEventListener('resize', resize);
 resize();
@@ -504,14 +564,13 @@ function load(url, key) {
 }
 
 // ------------------------------------------------------------------ cake
-let cake, cakeBox, candleLight;
+let cake, cakeBox, candleLight, cakeView;
 const flames = [];
 let wished = false, cakeReadyAt = Infinity;
 const turntable = new THREE.Group();   // stand + cake, slowly turning
 const STAND_H = 0.3;
 const CANDLE_MAX = 0.16;
 const CANDY = { roughness: 0.14, clearcoat: 1, clearcoatRoughness: 0.05 };
-const CAKE_ENV = 0.8;   // the cake reflects a bright studio like in Blender, however dark the room is
 const CAKE_LOOK = {
   Icing_Glossy_White: { roughness: 0.3, clearcoat: 0.6, clearcoatRoughness: 0.2, sheen: 0.3, sheenColor: 0xffffff },
   Cake_Pastel_Pink: { roughness: 0.7, sheen: 0.8, sheenColor: 0xffe4ee, sheenRoughness: 0.5 },
@@ -529,7 +588,8 @@ function setupCake(gltf) {
     const name = o.material.name;
     const look = CAKE_LOOK[name] || (name.startsWith('Ref_Candy') ? CANDY : name.startsWith('Web_Candle') ? { roughness: 0.4, clearcoat: 0.5 } : null);
     if (look) o.material = tinted(o.material, look);
-    o.material.envMapIntensity = CAKE_ENV / BG.envMax;   // scaled by the room's environment level as it lights up
+    // the cake reflects a bright studio like in Blender, however dark the room is (scaled by the room's level as it lights up)
+    o.material.envMapIntensity = BG.cakeEnv / BG.envMax;
   });
   const stand = make('Stand');   // modelled with the plate top at 0 and the foot at -STAND_H
   stand.position.y = cake.position.y = STAND_H;
@@ -552,9 +612,11 @@ function setupCake(gltf) {
     f.userData = { base: f.scale.clone(), life: 0, glow, seed: rand(0, 100) };   // unlit until the last balloon pops
     flames.push(f);
   }
+  // in the world, not on the cake: hiding the cake would hide the light too, and a change in the number of lights
+  // recompiles every shader (a freeze right when the gifts arrive)
   candleLight = new THREE.PointLight(0xffa860, 0, 0, 2);
-  candleLight.position.set(0, 1.13, 0);
-  cake.add(candleLight);
+  candleLight.position.set(0, STAND_H + 1.13, 0);
+  world.add(candleLight);
   turntable.add(blob(1.2));
   turntable.visible = false;
   world.add(turntable);
@@ -636,6 +698,7 @@ const foil = (color) => ({ Heart_Foil: { color, metalness: 0.65, roughness: 0.2,
 const jelly = (color) => ({ Jelly: { color, roughness: 0.08, clearcoat: 1, clearcoatRoughness: 0.04, sheen: 0.3, sheenColor: 0xffd6e6 } });
 
 // dreamy gift boxes: a soft vertical gradient painted per box (bottom, middle, top), satin ribbon, glowing sparkle stars
+const starLooks = [];   // the stars glow up with the room, so the dark room stays dark
 const DREAMS = [
   { stops: ['#e08cf0', '#9b86ff', '#7fbaff'], ribbon: '#d79cff' },
   { stops: ['#ff6fa8', '#ff9cc6', '#ffd0e4'], ribbon: '#ffffff' },
@@ -663,7 +726,8 @@ function dreamGift({ stops, ribbon }) {
     } else if (name === 'Dream_Ribbon') {
       o.material = new THREE.MeshPhysicalMaterial({ name, color: ribbon, roughness: 0.22, clearcoat: 1, clearcoatRoughness: 0.1, sheen: 0.6, sheenColor: 0xffffff });
     } else if (name === 'Dream_Stars') {
-      o.material = new THREE.MeshStandardMaterial({ name, color: 0xffffff, emissive: 0xfff0fa, emissiveIntensity: 0.8, roughness: 0.4 });
+      o.material = new THREE.MeshStandardMaterial({ name, color: 0xffffff, emissive: 0xfff0fa, emissiveIntensity: 0, roughness: 0.4 });
+      starLooks.push(o.material);
     }
   });
   return g;
@@ -775,6 +839,8 @@ function balloon(kind, look, anchor, knot, scale) {
   balloons.push({ holder, body, seed: rand(0, 6) });
 }
 
+// a little above the string's lowest point, allowing for its rise towards the edges of a phone screen
+const BUNTING_ROOF = new THREE.Vector3(0, 1.84, -1.15);
 function bunting() {
   const pts = [];
   for (let i = 0; i <= 40; i++) {
@@ -1080,13 +1146,25 @@ function setupPopBalloons() {
   });
 }
 
-function releasePopBalloons() {
-  const spots = [[-0.55, -0.08], [0.02, 0.14], [0.56, -0.14]];   // spread across the screen (NDC)
-  const S = 0.62;
+const POP_SPOTS = [[-0.55, -0.08], [0.02, 0.14], [0.56, -0.14]];   // spread across the screen (NDC)
+const POP_SCALE = 0.62;
+function popHome(b, i) {
+  raycaster.setFromCamera(new THREE.Vector2(...POP_SPOTS[i]), camera);
+  b.home.copy(raycaster.ray.at(4.8, new THREE.Vector3())).add(new THREE.Vector3(0, -0.33 * POP_SCALE, 0));
+}
+// a turned phone reframes the room, so move the balloons with it (otherwise they can end up off-screen, unpoppable)
+addEventListener('resize', () => {
   popBalloons.forEach((b, i) => {
-    raycaster.setFromCamera(new THREE.Vector2(...spots[i]), camera);
-    b.home.copy(raycaster.ray.at(4.8, new THREE.Vector3())).add(new THREE.Vector3(0, -0.33 * S, 0));
-    b.g.scale.setScalar(S);
+    if (!b.g.visible || b.popped) return;
+    popHome(b, i);   // a rising balloon's tween follows home by reference
+    if (b.arrived) b.g.position.copy(b.home);
+  });
+});
+
+function releasePopBalloons() {
+  popBalloons.forEach((b, i) => {
+    popHome(b, i);
+    b.g.scale.setScalar(POP_SCALE);
     b.g.position.copy(b.home).add(new THREE.Vector3(0, -3.2, 0));
     b.g.visible = true;
     const from = b.g.position.clone();
@@ -1126,7 +1204,7 @@ async function pop(b) {
   music.pop();
   navigator.vibrate?.(30);
   const center = b.g.localToWorld(new THREE.Vector3(0, 0.33, 0));
-  await tween(70, (e) => b.g.scale.setScalar(0.62 * (1 + 0.25 * e)));
+  await tween(70, (e) => b.g.scale.setScalar(POP_SCALE * (1 + 0.25 * e)));
   b.g.visible = false;
   for (let i = 0; i < 18; i++) {
     const m = new THREE.Mesh(bitGeo, new THREE.MeshBasicMaterial({ color: b.color, transparent: true, side: THREE.DoubleSide, toneMapped: false }));
@@ -1147,7 +1225,11 @@ function pickPopBalloon(x, y) {
   return hit && live.find((b) => b.hit === hit.object);
 }
 
-function setBlackout(v) { $('#blackout').style.opacity = v; }
+function setBlackout(v) {
+  blackout = v;
+  $('#blackout').style.opacity = v;
+  setTheme();
+}
 
 async function lightStage(n, instant = false) {
   const hint = $('#darkHint');
@@ -1195,16 +1277,16 @@ async function lightStage(n, instant = false) {
 }
 
 async function startCake({ lit = false } = {}) {
+  if (!lit) $('#cake .top').classList.add('hidden');   // before the room shows, so the title can't linger in the dark
   go('cake');
   turntable.visible = true;
-  frame(cakeBox, 14, 1.3);
+  frame(cakeView);
   if (lit) {
     for (let n = 1; n <= 3; n++) lightStage(n, true);
     litStage = 3;
     return;
   }
   music.duck(0.14);
-  $('#cake .top').classList.add('hidden');
   const hint = $('#darkHint');
   hint.textContent = fill(CONFIG.darkHint);
   await sleep(1600);
@@ -1231,7 +1313,10 @@ function setupGifts() {
     root.rotation.y = rand(-0.45, 0.45);
     root.scale.setScalar(scale);
     gifts.add(root);
-    giftItems.push({ root, lid: root.getObjectByName('DreamGift_Lid'), content, scale, opened: false, seed: rand(0, 6) });
+    const lid = root.getObjectByName('DreamGift_Lid');
+    // see-through from the start: shaders are compiled while loading, and an opaque one ignores opacity
+    lid.traverse((o) => { if (o.isMesh) o.material.transparent = true; });
+    giftItems.push({ root, lid, content, scale, opened: false, seed: rand(0, 6) });
   });
   giftBox = new THREE.Box3().setFromObject(gifts);   // before the invisible helpers below are added
   for (const it of giftItems) {
@@ -1264,13 +1349,14 @@ async function toGifts() {
   turntable.visible = false;
   go('gifts');
   gifts.visible = true;
-  const from = { pos: camera.position.clone(), target: controls.target.clone() };
-  framed = { box: giftBox, elevDeg: 22 };
+  const from = { pos: camera.position.clone(), target: controls.target.clone(), shift: shiftY };
+  framed = { box: giftBox, elevDeg: 22, azimuth: 0 };   // straight on, wherever she left the cake turned
   const to = framing(giftBox, 22, 0);
   tween(1100, (e) => {
     camera.position.lerpVectors(from.pos, to.pos, e);
     controls.target.lerpVectors(from.target, to.target, e);
     camera.lookAt(controls.target);
+    setShift(THREE.MathUtils.lerp(from.shift, innerHeight * 0.06, e));
   }, { easing: ease.inOutSine });
   giftItems.forEach((it, i) => {
     it.root.scale.setScalar(0.001);
@@ -1296,7 +1382,7 @@ async function openGift(it) {
   music.chime();
   tween(420, (e) => root.scale.set(s * (1.12 - 0.12 * e), s * (0.84 + 0.16 * e), s * (1.12 - 0.12 * e)), { easing: ease.outBack });
   const lidMats = [];
-  lid.traverse((o) => { if (o.isMesh) { o.material.transparent = true; lidMats.push(o.material); } });
+  lid.traverse((o) => { if (o.isMesh) lidMats.push(o.material); });
   const spin = rand(-1, 1);
   tween(800, (e) => {
     lid.position.y = 0.8 + e * 1.6;
@@ -1323,6 +1409,7 @@ async function openGift(it) {
   }
 }
 
+let closeCard = null, cardShownAt = 0;   // set while a card is showing (Android's back gesture closes it too)
 function showCard(c) {
   return new Promise((done) => {
     const m = $('#card');
@@ -1330,15 +1417,49 @@ function showCard(c) {
     $('.card-title').textContent = fill(c.title);
     $('.card-text').textContent = fill(c.text);
     m.classList.remove('hidden');
-    const onClick = (e) => {
-      if (e.target !== m && e.target.id !== 'cardClose') return;
+    cardShownAt = performance.now();
+    const onClick = (e) => { if (e.target === m || e.target.id === 'cardClose') closeCard(); };
+    closeCard = () => {
       m.classList.add('hidden');
       m.removeEventListener('click', onClick);
+      closeCard = null;
       done();
     };
     m.addEventListener('click', onClick);
   });
 }
+
+// Android's back gesture: closes an open card, and otherwise asks once before leaving the surprise half-way
+let guarded = false;
+function guard() {
+  if (guarded) return;
+  history.pushState({ surprise: true }, '');
+  guarded = true;
+}
+addEventListener('popstate', () => {
+  guarded = false;   // her next tap puts the guard back
+  if (closeCard) closeCard();
+  else toast('go back once more to leave 💗');
+});
+addEventListener('pointerdown', () => {
+  if (scene !== 'loading' && scene !== 'intro') guard();
+  music.wake();
+}, true);
+
+function toast(text) {
+  const t = $('#toast');
+  t.textContent = text;
+  t.classList.remove('hidden');
+  clearTimeout(toast.timer);
+  toast.timer = setTimeout(() => t.classList.add('hidden'), 2600);
+}
+
+// Samsung phones switch the screen off after 30 s without a touch, less than the letter takes to read
+let wakeLock = null;
+async function stayAwake() {
+  try { wakeLock = await navigator.wakeLock?.request('screen'); } catch { /* refused, e.g. in battery saver */ }
+}
+document.addEventListener('visibilitychange', () => { if (!document.hidden && wakeLock) stayAwake(); });
 
 // taps (not drags) on the 3D stage
 let down = null;
@@ -1376,9 +1497,11 @@ function buildStack() {
     stack.appendChild(el);
   });
 
+  if (!CONFIG.photos.length) $('#toLetter').classList.remove('hidden');
+
   let card = null, sx = 0, sy = 0, dx = 0, dy = 0, t0 = 0;
   stack.addEventListener('pointerdown', (e) => {
-    card = stack.lastElementChild;
+    card = [...stack.querySelectorAll('.polaroid:not(.fly)')].pop();   // the top card, not one still flying away
     if (!card) return;
     card.classList.remove('back');
     sx = e.clientX; sy = e.clientY; dx = dy = 0; t0 = performance.now();
@@ -1467,7 +1590,9 @@ $('#toEnd').addEventListener('click', ending);
 $('#replay').addEventListener('click', () => location.reload());
 
 $('#envelope').addEventListener('click', async () => {
-  music.start();
+  try { music.start(); } catch (err) { console.error(err); }   // no sound is better than no surprise
+  stayAwake();
+  guard();
   $('#mute').classList.remove('hidden');
   $('#envelope').classList.add('open');
   $('#intro').classList.add('opening');
@@ -1508,6 +1633,7 @@ function loop(now) {
   stepPuffs(dt);
   if (turntable.visible) turntable.rotation.y += dt * 0.16;
   if (controls.enabled) controls.update();
+  if (closeCard && now - cardShownAt > 450) return;   // once a card covers the room, stop redrawing it under the blur
   renderer.render(world, camera);
   watchPerformance(dt);
 }
@@ -1526,7 +1652,8 @@ try {
   // compile every shader while the loader is still showing, so nothing stutters when the room lights up
   const hidden = [turntable, gifts, ...popBalloons.map((b) => b.g)];
   hidden.forEach((o) => { o.visible = true; });
-  frame(cakeBox, 14, 1.3);
+  cakeView = { box: cakeBox, elevDeg: 14, marginX: 1.3, roof: BUNTING_ROOF, sceneEl: $('#cake') };
+  frame(cakeView);
   await (renderer.compileAsync ? renderer.compileAsync(world, camera) : renderer.compile(world, camera));
   hidden.forEach((o) => { o.visible = false; });
   await Promise.race([document.fonts.ready, sleep(2500)]);
