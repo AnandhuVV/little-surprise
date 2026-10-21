@@ -7,7 +7,7 @@ export const CONFIG = {
 
   envelopeKicker: "to, {name}",
   envelopeTitle: "you've got mail 💌",
-  envelopeCard: "today is all about you ✨",
+  envelopeCard: "this one's all about you ✨",
 
   darkHint: "hmm… it's a little dark in here 🙈",
   popPrompt: "pop the balloons to turn on the lights 🎈",
@@ -65,5 +65,5 @@ export const CONFIG = {
   signoff: "Always, {from} 💜",
 
   endingTitle: "Happy Birthday, Undappi 💜",   // the nickname only here, on the last screen
-  endingPrompt: "I hope today is every bit as lovely as you are ✨",
+  endingPrompt: "I hope this year is every bit as lovely as you are ✨",
 };
