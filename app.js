@@ -268,8 +268,8 @@ world.environmentIntensity = 0;
 // Both start black; the balloon pops reveal them.
 const BACKDROPS = {
   dark: {
-    fog: 0x2c0f28, shadow: [0x000000, 0.35], blob: [0x12060f, 0.4], moon: [0xa58bd6, 0x2b1730, 0.6], envMax: 0.25,
-    blackout: [0.7, 0.35], spot: 30,
+    fog: 0x2c0f28, shadow: [0x000000, 0.35], blob: [0x12060f, 0.4], moon: [0xd9ccff, 0x3a2038, 0.7], envMax: 0.25,
+    blackout: [0.7, 0.35], spot: 30, party: 1.1, decorEnv: 0.5,
   },
   pastel: {
     fog: null, shadow: [0xa8436f, 0.16], blob: [0x9b3d66, 0.22], moon: [0xfff2f6, 0xffc9dc, 0.7], envMax: 0.75,
@@ -302,6 +302,9 @@ Object.assign(spot.shadow.camera, { near: 1, far: 8 });
 spot.shadow.bias = -0.0004;
 spot.shadow.normalBias = 0.02;
 world.add(spot.target);
+if (BG.party) {   // a soft white light over the whole party, so the decorations keep their colours in the dark room
+  lamp('party', new THREE.DirectionalLight(0xfff4ee, 0), BG.party).position.set(-2.2, 3, 3.2);
+}
 if (BG.spot) {   // the rest of the cake's studio lights from the Blender scene, in narrow cones that only reach the cake:
   // a cool fill from the front right and pink rims from behind on either side
   for (const [name, color, max, pos] of [['fill', 0xeef2ff, 8, [1.8, 1.4, 2.3]], ['rimL', 0xffe6f0, 10, [-1.7, 1.6, -1.9]],
@@ -627,18 +630,18 @@ const votiveGlass = new Set();
 let decorGltf, falling, sparkles, fairy, rice;
 const UP = new THREE.Vector3(0, 1, 0);
 const WARM = new THREE.Color(1, 0.8, 0.5), BULB_OFF = new THREE.Color(0.012, 0.009, 0.009);
-const CONFETTI = ['#ff8fb8', '#ffc2d8', '#c9b3ff', '#f6cf6e', '#9fe3c9', '#8fd0ff', '#ffffff'];
+const CONFETTI = ['#ff6fa8', '#ff9cc3', '#a98bff', '#f6c34e', '#5fd9ac', '#62bcff', '#ffffff'];
 const latex = (color) => ({ Balloon_Latex: { color, roughness: 0.3, clearcoat: 1, clearcoatRoughness: 0.1, sheen: 0.5, sheenColor: 0xffffff } });
 const foil = (color) => ({ Heart_Foil: { color, metalness: 0.65, roughness: 0.2, clearcoat: 1, clearcoatRoughness: 0.1 } });
 const jelly = (color) => ({ Jelly: { color, roughness: 0.08, clearcoat: 1, clearcoatRoughness: 0.04, sheen: 0.3, sheenColor: 0xffd6e6 } });
 
 // dreamy gift boxes: a soft vertical gradient painted per box (bottom, middle, top), satin ribbon, glowing sparkle stars
 const DREAMS = [
-  { stops: ['#e9b3f2', '#b3a4ff', '#a9cfff'], ribbon: '#e6b8ff' },
-  { stops: ['#ff9ec4', '#ffbdd6', '#ffe1ee'], ribbon: '#ffffff' },
-  { stops: ['#a9d8ff', '#b9eedc', '#e6fff3'], ribbon: '#ffb3d6' },
-  { stops: ['#ffc39a', '#ffd9b8', '#fff0de'], ribbon: '#ff9ec4' },
-  { stops: ['#c3aaff', '#d8c8ff', '#f1e9ff'], ribbon: '#f6cf6e' },
+  { stops: ['#e08cf0', '#9b86ff', '#7fbaff'], ribbon: '#d79cff' },
+  { stops: ['#ff6fa8', '#ff9cc6', '#ffd0e4'], ribbon: '#ffffff' },
+  { stops: ['#74c2ff', '#86e3c3', '#d2fbe9'], ribbon: '#ff8fc3' },
+  { stops: ['#ffa066', '#ffc396', '#ffe6cc'], ribbon: '#ff7fb2' },
+  { stops: ['#a585ff', '#c4adff', '#ebe0ff'], ribbon: '#f6cf6e' },
 ];
 function dreamGift({ stops, ribbon }) {
   const g = make('DreamGift');
@@ -673,6 +676,30 @@ function make(name, tints = {}, shadow = true) {
     o.castShadow = shadow;
     o.receiveShadow = true;
     if (tints[o.material.name]) o.material = tinted(o.material, tints[o.material.name]);
+  });
+  return obj;
+}
+
+// the dark room gives the decorations their own studio reflections, so glossy balloons and gift boxes still shine
+function reflectStudio(group) {
+  if (!BG.decorEnv) return;
+  group.traverse((o) => {
+    if (o.isMesh) for (const m of [].concat(o.material)) if ('envMapIntensity' in m) m.envMapIntensity = BG.decorEnv / BG.envMax;
+  });
+}
+
+// push pale vertex colours (the clay flowers) towards their hue
+function saturate(obj, k) {
+  const c = new THREE.Color(), hsl = {};
+  obj.traverse((o) => {
+    if (!o.isMesh || !o.geometry.attributes.color) return;
+    o.geometry = o.geometry.clone();
+    const col = o.geometry.attributes.color;
+    for (let i = 0; i < col.count; i++) {
+      c.fromBufferAttribute(col, i).getHSL(hsl);
+      c.setHSL(hsl.h, Math.min(1, hsl.s * k), hsl.l * 0.94);
+      col.setXYZ(i, c.r, c.g, c.b);
+    }
   });
   return obj;
 }
@@ -760,7 +787,7 @@ function bunting() {
   flag.setAttribute('position', new THREE.Float32BufferAttribute([-0.07, 0, 0, 0.07, 0, 0, 0, -0.16, 0], 3));
   flag.setAttribute('uv', new THREE.Float32BufferAttribute([0, 1, 1, 1, 0.5, 0], 2));
   flag.computeVertexNormals();
-  const mats = ['#ffb3cf', '#d9c4ff', '#b8ecd7', '#ffd6b0', '#fff0b3'].map((c) =>
+  const mats = ['#ff8fbf', '#b59bff', '#7fdcb8', '#ffb37f', '#ffe27a'].map((c) =>
     new THREE.MeshStandardMaterial({ map: pennantTexture(c), side: THREE.DoubleSide, roughness: 0.85 }));
   const N = 34;
   for (let i = 0; i < N; i++) {
@@ -860,7 +887,7 @@ function resetFloater(f, anywhere) {
 }
 
 function setupFloaters() {
-  const hearts = ['#ff8fb8', '#ffb3cf', '#d9b8ff', '#ff6f9f'];
+  const hearts = ['#ff6fa3', '#ff94bf', '#b98cff', '#ff4f8b'];
   for (let i = 0; i < 12; i++) {
     const star = i % 3 === 2;
     const obj = star ? make('Star', {}, false) : make('JellyHeart', jelly(hearts[i % hearts.length]), false);
@@ -890,28 +917,28 @@ function setupDecor() {
   place(dreamGift(DREAMS[1]), [1.75, 0, -0.35], 0.2, 0.34);
   place(dreamGift(DREAMS[0]), [1.98, 0, 0.05], -0.6, 0.22);
 
-  balloon('Balloon', latex('#ffadc9'), [-0.8, 0.34, -0.52], [-0.9, 1.22, -0.64], 0.85);
-  balloon('Balloon', latex('#cdb4ff'), [-0.8, 0.34, -0.52], [-0.6, 1.08, -0.78], 0.75);
+  balloon('Balloon', latex('#ff6fa8'), [-0.8, 0.34, -0.52], [-0.9, 1.22, -0.64], 0.85);
+  balloon('Balloon', latex('#a07cff'), [-0.8, 0.34, -0.52], [-0.6, 1.08, -0.78], 0.75);
   balloon('Heart', foil('#f2c46d'), [-0.8, 0.34, -0.52], [-1.0, 0.95, -0.42], 0.8);
-  balloon('Balloon', latex('#a8e6cf'), [0.84, 0.31, -0.46], [0.92, 1.2, -0.6], 0.85);
-  balloon('Balloon', latex('#ffd1a6'), [0.84, 0.31, -0.46], [0.64, 1.05, -0.74], 0.72);
-  balloon('Heart', foil('#ffbcd2'), [0.84, 0.31, -0.46], [1.02, 0.93, -0.36], 0.8);
+  balloon('Balloon', latex('#4fd6a4'), [0.84, 0.31, -0.46], [0.92, 1.2, -0.6], 0.85);
+  balloon('Balloon', latex('#ffa45c'), [0.84, 0.31, -0.46], [0.64, 1.05, -0.74], 0.72);
+  balloon('Heart', foil('#ff7fb0'), [0.84, 0.31, -0.46], [1.02, 0.93, -0.36], 0.8);
   // wider screens see a little more of the party
-  balloon('Balloon', latex('#b5dcff'), [1.75, 0.38, -0.35], [1.7, 1.45, -0.55], 0.9);
-  balloon('Balloon', latex('#fff0a6'), [1.75, 0.38, -0.35], [1.98, 1.3, -0.45], 0.8);
-  balloon('Balloon', latex('#ffadc9'), [-1.8, 0.0, -0.6], [-1.75, 1.5, -0.7], 0.9);
-  balloon('Heart', foil('#c9b3ff'), [-1.8, 0.0, -0.6], [-2.05, 1.25, -0.5], 0.85);
-  balloon('Balloon', latex('#a8e6cf'), [-1.8, 0.0, -0.6], [-1.55, 1.3, -0.85], 0.75);
+  balloon('Balloon', latex('#5eb8ff'), [1.75, 0.38, -0.35], [1.7, 1.45, -0.55], 0.9);
+  balloon('Balloon', latex('#ffd84a'), [1.75, 0.38, -0.35], [1.98, 1.3, -0.45], 0.8);
+  balloon('Balloon', latex('#ff6fa8'), [-1.8, 0.0, -0.6], [-1.75, 1.5, -0.7], 0.9);
+  balloon('Heart', foil('#a68aff'), [-1.8, 0.0, -0.6], [-2.05, 1.25, -0.5], 0.85);
+  balloon('Balloon', latex('#4fd6a4'), [-1.8, 0.0, -0.6], [-1.55, 1.3, -0.85], 0.75);
 
-  place(make('Cupcake', { Cupcake_Frosting: { color: '#ffc2dc', roughness: 0.5, sheen: 0.6, sheenColor: 0xffffff } }), [-0.64, 0, 0.86], 0.4);
-  place(make('Cupcake', { Cupcake_Frosting: { color: '#c9f0dd', roughness: 0.5, sheen: 0.6, sheenColor: 0xffffff } }), [-1.55, 0, 0.55], 2.1, 0.9);
+  place(make('Cupcake', { Cupcake_Frosting: { color: '#ff8fc0', roughness: 0.5, sheen: 0.6, sheenColor: 0xffffff } }), [-0.64, 0, 0.86], 0.4);
+  place(make('Cupcake', { Cupcake_Frosting: { color: '#7fe0b8', roughness: 0.5, sheen: 0.6, sheenColor: 0xffffff } }), [-1.55, 0, 0.55], 2.1, 0.9);
   // sweets: a cookie jar and a clay flower pot beside the stand, a marshmallow jar in front
   const jar = { Jar_Glass: { color: '#ffffff', transparent: true, opacity: 0.22, roughness: 0.04, clearcoat: 1, depthWrite: false } };
   for (const [name, pos, rot] of [['CookieJar', [-0.8, 0, 0.36], 0.3], ['MarshmallowJar', [0.66, 0, 0.88], -0.5]]) {
     place(make(name, jar), pos, rot).traverse((o) => { if (o.isMesh && o.material.name === 'Jar_Glass') o.castShadow = false; });
   }
-  place(make('FlowerPot'), [0.8, 0, 0.32], -0.4, 1.05);
-  const shells = ['#ffb3cf', '#b8ecd7', '#d9c4ff', '#fff0a6'];
+  place(saturate(make('FlowerPot'), 1.7), [0.8, 0, 0.32], -0.4, 1.05);
+  const shells = ['#ff8fbd', '#7fdcb6', '#b79cff', '#ffe066'];
   shells.slice(0, 3).forEach((c, i) => {
     place(make('Macaron', { Macaron_Shell: { color: c, roughness: 0.6, sheen: 0.7, sheenColor: 0xffffff } }),
       [1.36 + rand(-0.008, 0.008), i * 0.112, 0.84 + rand(-0.008, 0.008)], rand(0, 6));
@@ -1147,7 +1174,7 @@ async function lightStage(n, instant = false) {
     });
     switchOn(lamps.spot, { delay: instant ? 0 : 900, ms: instant ? 1 : 1600 });
     switchOn(lamps.moon, { ms: instant ? 1 : 2000 });
-    for (const k of ['sun', 'rim', 'fill', 'rimL', 'rimR']) if (lamps[k]) switchOn(lamps[k], { delay: instant ? 0 : 600, ms: instant ? 1 : 2000 });
+    for (const k of ['sun', 'rim', 'party', 'fill', 'rimL', 'rimR']) if (lamps[k]) switchOn(lamps[k], { delay: instant ? 0 : 600, ms: instant ? 1 : 2000 });
     tween(instant ? 1 : 2000, (e) => { room.env = room.envMax * (0.4 + 0.6 * e); });
     tween(instant ? 1 : 2500, (e) => { sparkles.level = e; }, { delay: instant ? 0 : 1200 });
     music.duck(VOLUME);
@@ -1493,6 +1520,8 @@ try {
   setupDecor();
   setupGifts();
   setupPopBalloons();
+  reflectStudio(decor);
+  reflectStudio(gifts);
   buildStack();
   // compile every shader while the loader is still showing, so nothing stutters when the room lights up
   const hidden = [turntable, gifts, ...popBalloons.map((b) => b.g)];
