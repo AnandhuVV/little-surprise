@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>A little surprise 🎀</title>
+  <meta name="description" content="Open me when you have three quiet minutes 💌">
+  <meta property="og:title" content="A little surprise for you 🎀">
+  <meta property="og:description" content="Open me when you have three quiet minutes 💌">
+  <meta property="og:image" content="assets/preview.jpg">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="">
+  <meta name="theme-color" content="#ffdcea">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎂</text></svg>">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Caveat:wght@500;700&family=Quicksand:wght@500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+  <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.3/dist/confetti.browser.min.js"></script>
+  <script>
+    // if anything fails to load (very old in-app browser, no WebGL), say so instead of spinning forever
+    addEventListener('error', () => {
+      const hint = document.querySelector('#loading.active .hint');
+      if (hint) hint.textContent = 'hmm, this browser is being shy. try opening the link in Safari or Chrome 💗';
+    });
+  </script>
+  <script async src="https://cdn.jsdelivr.net/npm/es-module-shims@1.10.0/dist/es-module-shims.js"></script>
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://cdn.jsdelivr.net/npm/three@0.165.0/build/three.module.js",
+        "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.165.0/examples/jsm/"
+      }
+    }
+  </script>
+</head>
+<body>
+  <canvas id="sky" aria-hidden="true"></canvas>
+  <canvas id="stage" aria-label="A 3D birthday cake"></canvas>
+  <button id="mute" class="mute hidden" aria-label="Mute music">🔊</button>
+
+  <section id="loading" class="scene active">
+    <div class="loader-heart">💗</div>
+    <p class="hint">wrapping your surprise…</p>
+    <div class="bar"><span id="progress"></span></div>
+  </section>
+
+  <section id="intro" class="scene">
+    <p class="kicker" data-text="envelopeKicker"></p>
+    <h1 class="title" data-text="envelopeTitle"></h1>
+    <button id="envelope" class="envelope" aria-label="Open the envelope">
+      <span class="env-back"></span>
+      <span class="env-letter"><span data-text="envelopeCard"></span></span>
+      <span class="env-front"></span>
+      <span class="env-flap"></span>
+      <span class="env-seal">♥</span>
+    </button>
+    <p class="hint pulse">tap to open</p>
+  </section>
+
+  <section id="cake" class="scene overlay">
+    <div class="top">
+      <h1 class="title big" data-text="cakeTitle"></h1>
+      <p id="cakeHint" class="hint" data-text="wishPrompt"></p>
+    </div>
+    <div class="bottom">
+      <button id="toGifts" class="btn hidden">I got you something 🎁</button>
+    </div>
+  </section>
+
+  <section id="gifts" class="scene overlay">
+    <div class="top">
+      <h2 class="title" data-text="giftsTitle"></h2>
+      <p id="giftHint" class="hint">tap a gift to open it</p>
+    </div>
+    <div class="bottom">
+      <button id="toPhotos" class="btn hidden">one more thing… 📸</button>
+    </div>
+  </section>
+
+  <section id="photos" class="scene">
+    <h2 class="title" data-text="photosTitle"></h2>
+    <div id="stack" class="stack"></div>
+    <p id="photoHint" class="hint">swipe or tap 💫</p>
+    <button id="toLetter" class="btn hidden">there's a letter too 💌</button>
+  </section>
+
+  <section id="letter" class="scene">
+    <div id="paper" class="paper">
+      <div id="letterText" class="hand"></div>
+      <p id="signoff" class="hand signoff" data-text="signoff"></p>
+    </div>
+    <button id="toEnd" class="btn hidden">one last thing ✨</button>
+  </section>
+
+  <section id="end" class="scene">
+    <img class="end-cake" src="assets/cake-round.png" alt="">
+    <h1 class="title big" data-text="endingTitle"></h1>
+    <p class="hint" data-text="endingPrompt"></p>
+    <a id="reply" class="btn" target="_blank" rel="noopener" data-text="replyButton"></a>
+    <button id="replay" class="btn ghost">watch again ↺</button>
+    <p class="made">made with 💗 by <span data-from></span></p>
+  </section>
+
+  <div id="card" class="modal hidden" role="dialog" aria-modal="true">
+    <div class="card">
+      <div class="card-emoji"></div>
+      <h3 class="card-title"></h3>
+      <p class="card-text"></p>
+      <button class="btn small" id="cardClose">aww 💗</button>
+    </div>
+  </div>
+
+  <script type="module" src="app.js"></script>
+</body>
+</html>
