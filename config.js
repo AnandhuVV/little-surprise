@@ -5,7 +5,7 @@ export const CONFIG = {
   name: "Undappi",                // their name or a cute nickname
   from: "Kuttu",                  // how you sign off
 
-  envelopeKicker: "for {name}",
+  envelopeKicker: "to, {name}",
   envelopeTitle: "you've got mail 💌",
   envelopeCard: "today is all about you ✨",
 
@@ -53,7 +53,7 @@ export const CONFIG = {
   photosDone: "here's to many more smiles 💜",   // shown once she's gone through them all
 
   letter: [
-    "Hey {name},",
+    "For {name},",
     "Happy birthday! 🎂",
     "I wanted to make you something a little different this year — something you could open, poke at, and hopefully smile at.",
     "Thank you for being the kind of person who makes everyone around them feel seen. Talking to you is honestly one of the best parts of my day.",
