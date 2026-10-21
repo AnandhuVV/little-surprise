@@ -253,7 +253,7 @@ const canvas = $('#stage');
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
 renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
 renderer.setClearColor(0x000000, 0);
-renderer.toneMapping = THREE.NeutralToneMapping;
+renderer.toneMapping = THREE.NeutralToneMapping;   // closest to Blender's "Standard" view, but rolls off the glows
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
@@ -293,8 +293,8 @@ function lamp(name, light, max, flicker = 0) {
 }
 const room = { env: 0, envMax: BG.envMax };
 lamp('moon', new THREE.HemisphereLight(BG.moon[0], BG.moon[1]), BG.moon[2]);
-const spot = lamp('spot', new THREE.SpotLight(0xffe0bf, 0, 0, 0.36, 0.75, 2), BG.spot);   // the dark room's light on the cake
-spot.position.set(0.7, 3.4, 2.0);
+const spot = lamp('spot', new THREE.SpotLight(0xfff6f2, 0, 0, 0.36, 0.75, 2), BG.spot);   // the dark room's key light on the cake
+spot.position.set(-1.1, 3.3, 2.1);
 spot.target.position.set(0, 0.6, 0);
 spot.castShadow = BG.spot > 0;
 spot.shadow.mapSize.set(1024, 1024);
@@ -302,6 +302,15 @@ Object.assign(spot.shadow.camera, { near: 1, far: 8 });
 spot.shadow.bias = -0.0004;
 spot.shadow.normalBias = 0.02;
 world.add(spot.target);
+if (BG.spot) {   // the rest of the cake's studio lights from the Blender scene, in narrow cones that only reach the cake:
+  // a cool fill from the front right and pink rims from behind on either side
+  for (const [name, color, max, pos] of [['fill', 0xeef2ff, 8, [1.8, 1.4, 2.3]], ['rimL', 0xffe6f0, 10, [-1.7, 1.6, -1.9]],
+    ['rimR', 0xffe6f0, 10, [1.7, 1.6, -1.9]]]) {
+    const s = lamp(name, new THREE.SpotLight(color, 0, 0, 0.34, 0.8, 2), max);
+    s.position.set(...pos);
+    s.target = spot.target;
+  }
+}
 if (BG.sun) {   // the pastel room: a soft sun with shadows, and a pink back light that gives icing and balloons a glowing edge
   const sun = lamp('sun', new THREE.DirectionalLight(0xfff4ec, 0), BG.sun);
   sun.position.set(1.4, 3.2, 2.2);
@@ -499,9 +508,9 @@ const turntable = new THREE.Group();   // stand + cake, slowly turning
 const STAND_H = 0.3;
 const CANDLE_MAX = 0.16;
 const CANDY = { roughness: 0.14, clearcoat: 1, clearcoatRoughness: 0.05 };
+const CAKE_ENV = 0.8;   // the cake reflects a bright studio like in Blender, however dark the room is
 const CAKE_LOOK = {
   Icing_Glossy_White: { roughness: 0.3, clearcoat: 0.6, clearcoatRoughness: 0.2, sheen: 0.3, sheenColor: 0xffffff },
-  Cream_Piped: { roughness: 0.5, sheen: 0.7, sheenColor: 0xffffff },
   Cake_Pastel_Pink: { roughness: 0.7, sheen: 0.8, sheenColor: 0xffe4ee, sheenRoughness: 0.5 },
   Ribbon_Glossy_Orange: { roughness: 0.25, clearcoat: 1, clearcoatRoughness: 0.1 },
   Ribbon_Glossy_Red: { roughness: 0.25, clearcoat: 1, clearcoatRoughness: 0.1 },
@@ -517,6 +526,7 @@ function setupCake(gltf) {
     const name = o.material.name;
     const look = CAKE_LOOK[name] || (name.startsWith('Ref_Candy') ? CANDY : name.startsWith('Web_Candle') ? { roughness: 0.4, clearcoat: 0.5 } : null);
     if (look) o.material = tinted(o.material, look);
+    o.material.envMapIntensity = CAKE_ENV / BG.envMax;   // scaled by the room's environment level as it lights up
   });
   const stand = make('Stand');   // modelled with the plate top at 0 and the foot at -STAND_H
   stand.position.y = cake.position.y = STAND_H;
@@ -1137,7 +1147,7 @@ async function lightStage(n, instant = false) {
     });
     switchOn(lamps.spot, { delay: instant ? 0 : 900, ms: instant ? 1 : 1600 });
     switchOn(lamps.moon, { ms: instant ? 1 : 2000 });
-    if (BG.sun) for (const k of ['sun', 'rim']) switchOn(lamps[k], { delay: instant ? 0 : 600, ms: instant ? 1 : 2000 });
+    for (const k of ['sun', 'rim', 'fill', 'rimL', 'rimR']) if (lamps[k]) switchOn(lamps[k], { delay: instant ? 0 : 600, ms: instant ? 1 : 2000 });
     tween(instant ? 1 : 2000, (e) => { room.env = room.envMax * (0.4 + 0.6 * e); });
     tween(instant ? 1 : 2500, (e) => { sparkles.level = e; }, { delay: instant ? 0 : 1200 });
     music.duck(VOLUME);
