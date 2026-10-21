@@ -123,11 +123,15 @@ const sky = (() => {
 })();
 
 // ------------------------------------------------------------------ music
-// Two Debussy piano pieces, one after the other (~9.5 min before anything repeats). Both recordings are public domain,
-// from Wikimedia Commons: La plus que lente (played by "La Pianista", 2009) and Clair de lune (Laurens Goedhart, 2011).
-const TRACKS = ['assets/music/la-plus-que-lente.m4a', 'assets/music/clair-de-lune.m4a'];
+// Two gentle piano pieces, one after the other (~7 min before anything repeats), chosen for their even, soft dynamics.
+// Both recordings are public domain, from Wikimedia Commons: Fauré's Berceuse from the Dolly Suite (played by
+// Brian M. Jones) and Schumann's Träumerei (Musopen).
+const TRACKS = ['assets/music/berceuse.m4a', 'assets/music/traumerei.m4a'];
 const VOLUME = 0.55;
-const KEY = [73, 75, 77, 80, 82, 85, 87, 89, 92, 94, 97];   // D♭ major pentatonic, so the chimes sit inside both pieces' keys
+// the chimes stay in tune with the piano: candles and gifts come during the Berceuse (E major), so E pentatonic;
+// the photo blips can land in either piece, so only notes that sit in both E and F major
+const KEY = [76, 78, 80, 83, 85, 88, 90, 92, 95, 97, 100];
+const BOTH_KEYS = [81, 88, 93, 100];
 
 class MusicBox {
   constructor() { this.ctx = null; this.on = true; this.level = VOLUME; this.track = 0; }
@@ -158,15 +162,15 @@ class MusicBox {
     this.master.gain.value = 0;
     this.master.connect(c.destination);
     // the piano runs through the page's audio graph, so the dark room can duck it and the mute button covers it;
-    // a gentle compressor lifts the soft passages enough to carry on a phone speaker
+    // a light compressor just rounds off the odd louder chord
     this.prepare();
     const piano = c.createMediaElementSource(this.audio), comp = c.createDynamicsCompressor(), lift = c.createGain();
-    comp.threshold.value = -36;
-    comp.knee.value = 12;
-    comp.ratio.value = 3;
+    comp.threshold.value = -20;
+    comp.knee.value = 10;
+    comp.ratio.value = 2.5;
     comp.attack.value = 0.02;
     comp.release.value = 0.4;
-    lift.gain.value = 2.4;
+    lift.gain.value = 1.4;
     piano.connect(comp).connect(lift).connect(this.master);
     this.play();
     this.sfx = c.createGain();   // the balloon pops: muted with the music, but never ducked
@@ -213,12 +217,12 @@ class MusicBox {
   chime() {
     if (!this.ctx) return;
     const t = this.ctx.currentTime + 0.02;
-    [85, 89, 92, 97].forEach((m, i) => this.tone(m, t + i * 0.07, 0.7, 1.4));   // D♭ major, like the piano
+    [88, 92, 95, 100].forEach((m, i) => this.tone(m, t + i * 0.07, 0.7, 1.4));   // E major, like the Berceuse
   }
 
   blip() {
     if (!this.ctx) return;
-    this.tone(KEY[(rand(4, KEY.length) | 0)], this.ctx.currentTime + 0.01, 0.5, 0.8);
+    this.tone(BOTH_KEYS[(rand(0, BOTH_KEYS.length) | 0)], this.ctx.currentTime + 0.01, 0.5, 0.8);
   }
 
   spark(i) {   // each candle catching: a rising note
@@ -1482,6 +1486,12 @@ function showCard(c) {
     $('.card-emoji').textContent = c.emoji;
     $('.card-title').textContent = fill(c.title);
     $('.card-text').textContent = fill(c.text);
+    const gift = $('.card-gift');
+    gift.hidden = true;
+    gift.replaceChildren();
+    $('.card').classList.remove('has-gift');
+    $('#cardClose').classList.remove('ghost');
+    if (c.voucher) giftCard.then((g) => { if (g && !m.classList.contains('hidden')) showVoucher(gift, g); });
     m.classList.remove('hidden');
     cardShownAt = performance.now();
     const onClick = (e) => { if (e.target === m || e.target.id === 'cardClose') closeCard(); };
@@ -1493,6 +1503,30 @@ function showCard(c) {
     };
     m.addEventListener('click', onClick);
   });
+}
+
+// the real gift card inside the last card: a little card with the amount, a button to claim it, and/or its code
+function showVoucher(box, g) {
+  const card = document.createElement('div');
+  card.className = 'voucher';
+  for (const [cls, text] of [['voucher-label', g.label || 'Amazon Pay gift card'], ['voucher-amount', g.amount || ''], ['voucher-note', `for ${CONFIG.name} 💜`]]) {
+    card.append(Object.assign(document.createElement('span'), { className: cls, textContent: text }));
+  }
+  box.append(card);
+  if (g.link) {
+    box.append(Object.assign(document.createElement('a'), {
+      className: 'btn small', href: g.link, target: '_blank', rel: 'noopener', textContent: 'open my gift 🎁',
+    }));
+  }
+  if (g.code) {
+    const b = Object.assign(document.createElement('button'), { className: 'voucher-code' });
+    b.append(g.code, Object.assign(document.createElement('small'), { textContent: 'tap to copy the code' }));
+    b.addEventListener('click', () => navigator.clipboard?.writeText(g.code).then(() => toast('code copied 💜'), () => {}));
+    box.append(b);
+  }
+  box.hidden = false;
+  $('.card').classList.add('has-gift');
+  $('#cardClose').classList.add('ghost');   // "open my gift" is the button that matters here
 }
 
 // Android's back gesture: closes an open card, and otherwise asks once before leaving the surprise half-way
@@ -1549,28 +1583,39 @@ canvas.addEventListener('pointerup', (e) => {
 });
 
 // ------------------------------------------------------------------ polaroids
-// Her photos sit in the (public) repo encrypted as photos/N.bin (12-byte IV, then AES-GCM ciphertext + tag), made by
-// private/seal_photos.mjs. The key comes only in her link (#k=…), and the part after # never reaches a server.
-const photoKey = (async () => {
+// Her photos (photos/N.bin) and the gift card (assets/gift.bin) sit in the public repo encrypted (12-byte IV, then
+// AES-GCM ciphertext + tag), made by private/seal_photos.mjs and private/seal_gift.mjs. The key comes only in her
+// link (#k=…), and the part after # never reaches a server.
+const sealKey = (async () => {
   try {
     const k = new URLSearchParams(location.hash.slice(1)).get('k');
     const raw = Uint8Array.from(atob(k.replace(/-/g, '+').replace(/_/g, '/')), (ch) => ch.charCodeAt(0));
     return await crypto.subtle.importKey('raw', raw, 'AES-GCM', false, ['decrypt']);
-  } catch { return null; }   // no key (or no WebCrypto): the sealed photos are skipped
+  } catch { return null; }   // no key (or no WebCrypto): the sealed things are skipped
 })();
+
+async function unseal(src) {
+  const key = await sealKey;
+  if (!key) throw new Error('no key');
+  const res = await fetch(src);
+  if (!res.ok) throw new Error(`${src}: ${res.status}`);
+  const data = new Uint8Array(await res.arrayBuffer());
+  return crypto.subtle.decrypt({ name: 'AES-GCM', iv: data.subarray(0, 12) }, key, data.subarray(12));
+}
 
 async function photoURL(src) {
   if (!src.endsWith('.bin')) return src;
-  const key = await photoKey;
-  if (!key) throw new Error('no photo key');
-  const data = new Uint8Array(await (await fetch(src)).arrayBuffer());
-  const plain = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: data.subarray(0, 12) }, key, data.subarray(12));
-  return URL.createObjectURL(new Blob([plain], { type: 'image/jpeg' }));
+  return URL.createObjectURL(new Blob([await unseal(src)], { type: 'image/jpeg' }));
 }
+
+// the real gift card for the box marked voucher: { amount, link, code } (null without the key)
+const giftCard = CONFIG.gifts.some((g) => g.voucher)
+  ? unseal('assets/gift.bin').then((b) => JSON.parse(new TextDecoder().decode(b))).catch(() => null)
+  : Promise.resolve(null);
 
 async function buildStack() {
   const stack = $('#stack');
-  const photos = (await photoKey) ? CONFIG.photos : CONFIG.photos.filter((p) => !p.src.endsWith('.bin'));
+  const photos = (await sealKey) ? CONFIG.photos : CONFIG.photos.filter((p) => !p.src.endsWith('.bin'));
   [...photos].reverse().forEach((p) => {   // first photo ends up on top
     const el = document.createElement('div');
     el.className = 'polaroid';

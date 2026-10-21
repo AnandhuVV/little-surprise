@@ -33,9 +33,10 @@ export const CONFIG = {
       text: "You take care of everyone around you, so please take care of yourself too. Eat on time, rest when you're tired, and go easy on yourself. You deserve the same kindness you give.",
     },
     {
-      emoji: "🍰",
-      title: "A birthday coupon",
-      text: "Good for one dessert of your choice, on me. No expiry date, no questions asked. 🍦",
+      emoji: "🛍️",
+      title: "A little birthday treat",
+      text: "Treat yourself to something that makes you smile. And the dessert is still on me 🍦",
+      voucher: true,   // shows the real gift card, sealed in assets/gift.bin by private/seal_gift.mjs
     },
   ],
 

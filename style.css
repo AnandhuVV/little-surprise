@@ -601,6 +601,53 @@ body[data-bg="dark"][data-scene="gifts"] .mute { background: rgba(255, 255, 255,
   line-height: 1.55;
   color: var(--ink-soft);
 }
+/* the real gift card in the last box (sealed in assets/gift.bin; only her link can open it) */
+.card { max-height: calc(100vh - 32px); max-height: calc(100dvh - 32px); overflow-y: auto; }
+.card.has-gift { padding-top: 26px; }
+.card.has-gift .card-emoji { font-size: 2.4rem; margin-bottom: 4px; }
+.card.has-gift .card-text { margin-bottom: 14px; }
+.card-gift:not([hidden]) { display: grid; justify-items: center; gap: 10px; margin: 0 0 16px; }
+.voucher {
+  position: relative;
+  width: min(100%, 230px);
+  aspect-ratio: 1.75;
+  padding: 12px 16px;
+  border-radius: 16px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  text-align: left;
+  color: #fff;
+  background:
+    radial-gradient(110% 90% at 88% 0%, rgba(255, 255, 255, 0.42), transparent 55%),
+    linear-gradient(135deg, #c3a8ff 0%, #8c66dc 58%, #6e4bc6 100%);
+  box-shadow: 0 14px 28px rgba(108, 79, 168, 0.34), inset 0 1px 0 rgba(255, 255, 255, 0.45);
+  overflow: hidden;
+}
+.voucher::before {              /* a slow sheen across the card */
+  content: "";
+  position: absolute;
+  inset: -50%;
+  background: linear-gradient(105deg, transparent 42%, rgba(255, 255, 255, 0.32) 50%, transparent 58%);
+  animation: sheen 3.4s ease-in-out 0.8s infinite;
+}
+.voucher::after { content: "✦"; position: absolute; top: 10px; right: 14px; font-size: 1rem; opacity: 0.9; }
+@keyframes sheen { 0%, 35% { transform: translateX(-55%); } 75%, 100% { transform: translateX(55%); } }
+.voucher-label { position: relative; font-size: 0.74rem; font-weight: 700; letter-spacing: 0.04em; opacity: 0.95; }
+.voucher-amount { position: relative; font-family: var(--hand); font-weight: 700; font-size: 2.5rem; line-height: 1; }
+.voucher-note { position: relative; font-size: 0.74rem; font-weight: 600; opacity: 0.9; }
+.voucher-code {
+  appearance: none;
+  border: 1.5px dashed var(--lav);
+  border-radius: 12px;
+  padding: 8px 14px;
+  background: #fff;
+  color: var(--ink);
+  font: 700 0.95rem/1.25 var(--ui);
+  letter-spacing: 0.06em;
+  cursor: pointer;
+}
+.voucher-code small { display: block; margin-top: 2px; font-size: 0.72rem; font-weight: 600; letter-spacing: 0; color: var(--ink-soft); }
 
 /* ------------------------------------------------------------ phone on its side */
 #rotate {                    /* every scene is laid out for portrait, so ask nicely (nothing behind it stops) */
@@ -627,7 +674,7 @@ body[data-bg="dark"][data-scene="gifts"] .mute { background: rgba(255, 255, 255,
   .scene { gap: 22px; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .btn, .envelope, .end-cake, .card-emoji, .loader-heart, .rotate-phone { animation: none; }
+  .btn, .envelope, .end-cake, .card-emoji, .loader-heart, .rotate-phone, .voucher::before { animation: none; }
 }
 /* In dark mode Samsung Internet (and Chrome, when asked to) recolour light-only pages, which turns the pastel pages muddy.
    A page that declares dark support (color-scheme) and has dark rules is left alone, so these keep the same light look. */
