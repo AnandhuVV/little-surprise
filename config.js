@@ -22,13 +22,13 @@ export const CONFIG = {
   gifts: [
     {
       emoji: "🌷",
-      title: "Something I've noticed",
-      text: "You have this way of making ordinary days feel a little softer. I don't think you even realise you do it.",
+      title: "To the one I always care about",
+      text: "On the busy days and the quiet ones, I'm always rooting for you. Whatever this year brings, I hope you know there's someone in your corner.",
     },
     {
       emoji: "✨",
-      title: "A tiny reminder",
-      text: "You're so much more amazing than you give yourself credit for. Today is a very good day to believe it.",
+      title: "Remember this",
+      text: "You take care of everyone around you, so please take care of yourself too. Eat on time, rest when you're tired, and go easy on yourself. You deserve the same kindness you give.",
     },
     {
       emoji: "🍰",
